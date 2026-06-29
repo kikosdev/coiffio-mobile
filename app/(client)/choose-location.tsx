@@ -1,0 +1,359 @@
+import { useRef, useState, useEffect, useCallback } from 'react';
+import {
+  View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator,
+} from 'react-native';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import WebView, { WebViewMessageEvent } from 'react-native-webview';
+import * as Location from 'expo-location';
+import Svg, { Path, Circle } from 'react-native-svg';
+import { useTheme } from '../../src/theme/ThemeProvider';
+import { dummySalonPins, SalonPin } from '../../src/data/dummy';
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const FALLBACK = { lat: 36.8065, lng: 10.1815 };
+
+// ── Haversine distance (km) ──────────────────────────────────────────────────
+
+function haversine(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((a.lat * Math.PI) / 180) *
+      Math.cos((b.lat * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(h));
+}
+
+// ── Leaflet HTML (injected inline — dark CARTO tiles, no key required) ───────
+
+function buildLeafletHtml(gold: string, bg: string) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body,#map{width:100%;height:100%;background:${bg};}
+  .leaflet-control-attribution{font-size:9px;background:rgba(0,0,0,0.5)!important;color:#888!important;}
+  .leaflet-control-attribution a{color:#888!important;}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+  var map = L.map('map', { zoomControl: false, attributionControl: true })
+    .setView([${FALLBACK.lat}, ${FALLBACK.lng}], 13);
+
+  L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>', maxZoom: 19 }
+  ).addTo(map);
+
+  var userMarker = null;
+  var salonMarkers = [];
+
+  window.__setData = function(data) {
+    if (data.user) {
+      if (userMarker) userMarker.remove();
+      userMarker = L.circleMarker([data.user.lat, data.user.lng], {
+        radius: 9, color: '${gold}', fillColor: '${gold}', fillOpacity: 1, weight: 2
+      }).addTo(map);
+      map.setView([data.user.lat, data.user.lng], 14);
+    }
+    salonMarkers.forEach(function(m){ m.remove(); });
+    salonMarkers = [];
+    (data.salons || []).forEach(function(s) {
+      var m = L.circleMarker([s.lat, s.lng], {
+        radius: 8, color: '#fff', fillColor: '#161616', fillOpacity: 1, weight: 2
+      }).addTo(map);
+      m.on('click', function() {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'select', id: s.id }));
+      });
+      salonMarkers.push(m);
+    });
+  };
+</script>
+</body>
+</html>`;
+}
+
+// ── Icons ────────────────────────────────────────────────────────────────────
+
+function ChevronLeft({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M15 6l-6 6 6 6" />
+    </Svg>
+  );
+}
+
+function MoreHorizontal({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill={color}>
+      <Circle cx={6} cy={12} r={1.6} />
+      <Circle cx={12} cy={12} r={1.6} />
+      <Circle cx={18} cy={12} r={1.6} />
+    </Svg>
+  );
+}
+
+function StarIcon({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <Path d="M12 2l2.9 6 6.6.6-5 4.3 1.5 6.5L12 16.5 6 20l1.5-6.6-5-4.3 6.6-.6z" />
+    </Svg>
+  );
+}
+
+function MapPinIcon({ color }: { color: string }) {
+  return (
+    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
+      <Path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11z" />
+      <Circle cx={12} cy={10} r={2.3} />
+    </Svg>
+  );
+}
+
+// ── Main screen ──────────────────────────────────────────────────────────────
+
+type Mode = 'map' | 'nearby';
+
+export default function ChooseLocation() {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const webviewRef = useRef<WebView>(null);
+
+  const [mode, setMode] = useState<Mode>('map');
+  const [user, setUser] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  const selectedSalon = selectedId ? dummySalonPins.find((s) => s.id === selectedId) ?? null : null;
+
+  const salonsWithDist = dummySalonPins.map((s) => ({
+    ...s,
+    distanceKm: user ? +haversine(user, s).toFixed(1) : null,
+  }));
+  const sortedNearby = [...salonsWithDist].sort((a, b) =>
+    (a.distanceKm ?? 999) - (b.distanceKm ?? 999)
+  );
+
+  // Request geolocation
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setUser({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      } else {
+        setUser(FALLBACK);
+      }
+    })();
+  }, []);
+
+  // Push data into WebView after map + user both ready
+  const injectData = useCallback(() => {
+    if (!mapReady || !webviewRef.current) return;
+    const payload = JSON.stringify({ user: user ?? FALLBACK, salons: dummySalonPins });
+    webviewRef.current.injectJavaScript(`window.__setData(${payload}); true;`);
+  }, [mapReady, user]);
+
+  useEffect(() => { injectData(); }, [injectData]);
+
+  const onMessage = (e: WebViewMessageEvent) => {
+    try {
+      const msg = JSON.parse(e.nativeEvent.data);
+      if (msg.type === 'select') setSelectedId(msg.id);
+    } catch (_) {}
+  };
+
+  const leafletHtml = buildLeafletHtml(t.color.gold, t.color.bgBase);
+
+  return (
+    <View style={[styles.root, { backgroundColor: t.color.bgBase, paddingTop: insets.top }]}>
+      {/* Top bar */}
+      <View style={styles.topBar}>
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <ChevronLeft color={t.color.textPrimary} />
+        </Pressable>
+        <Text style={[styles.topWordmark, { color: t.color.textPrimary }]}>BLACK BOX</Text>
+        <MoreHorizontal color={t.color.textPrimary} />
+      </View>
+
+      {/* Title */}
+      <Text style={[styles.title, { color: t.color.textPrimary }]}>{'Choose a\nlocation'}</Text>
+
+      {/* Segmented toggle */}
+      <View style={[styles.segmented, { backgroundColor: t.color.surfaceCard }]}>
+        {(['map', 'nearby'] as Mode[]).map((m) => (
+          <Pressable
+            key={m}
+            onPress={() => setMode(m)}
+            style={[
+              styles.segment,
+              mode === m && { backgroundColor: t.color.textPrimary },
+            ]}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                { color: mode === m ? t.color.bgBase : t.color.textSecondary },
+              ]}
+            >
+              {m === 'map' ? 'Search on Map' : 'Nearby'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Map mode */}
+      {mode === 'map' && (
+        <View style={styles.mapContainer}>
+          {!user && (
+            <ActivityIndicator
+              style={styles.loader}
+              color={t.color.gold}
+              size="small"
+            />
+          )}
+          <WebView
+            ref={webviewRef}
+            style={styles.webview}
+            source={{ html: leafletHtml }}
+            originWhitelist={['*']}
+            javaScriptEnabled
+            domStorageEnabled
+            onLoadEnd={() => { setMapReady(true); }}
+            onMessage={onMessage}
+            scrollEnabled={false}
+          />
+
+          {/* Bottom card — selected salon */}
+          {selectedSalon && (
+            <View
+              style={[
+                styles.bottomCard,
+                {
+                  backgroundColor: t.color.surfaceCard,
+                  bottom: insets.bottom + 12,
+                },
+              ]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.cardName, { color: t.color.textPrimary }]}>
+                  {selectedSalon.name}
+                </Text>
+                <View style={styles.cardMeta}>
+                  <StarIcon size={13} color={t.color.gold} />
+                  <Text style={[styles.cardMetaText, { color: t.color.textSecondary }]}>
+                    {selectedSalon.rating} ({selectedSalon.reviews})
+                    {salonsWithDist.find((s) => s.id === selectedSalon.id)?.distanceKm != null
+                      ? ` · ${salonsWithDist.find((s) => s.id === selectedSalon.id)!.distanceKm} km`
+                      : ''}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                style={[styles.bookNowBtn, { backgroundColor: t.color.textPrimary }]}
+                onPress={() => router.push({ pathname: '/(client)/salon/[id]', params: { id: selectedSalon.id } })}
+              >
+                <Text style={[styles.bookNowText, { color: t.color.bgBase }]}>Book Now</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Nearby mode */}
+      {mode === 'nearby' && (
+        <FlatList
+          data={sortedNearby}
+          keyExtractor={(s) => s.id}
+          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 24 }}
+          renderItem={({ item }) => (
+            <Pressable
+              style={({ pressed }) => [
+                styles.nearbyCard,
+                {
+                  backgroundColor: pressed ? t.color.surfaceElevated : t.color.surfaceCard,
+                  borderColor: t.color.borderSubtle,
+                },
+              ]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.nearbyName, { color: t.color.textPrimary }]}>
+                  {item.name}
+                </Text>
+                <View style={styles.nearbyMeta}>
+                  <StarIcon size={13} color={t.color.gold} />
+                  <Text style={[styles.nearbyMetaText, { color: t.color.textSecondary }]}>
+                    {item.rating} ({item.reviews})
+                  </Text>
+                  {item.distanceKm != null && (
+                    <>
+                      <Text style={{ color: t.color.textMuted }}> · </Text>
+                      <MapPinIcon color={t.color.textMuted} />
+                      <Text style={[styles.nearbyMetaText, { color: t.color.textMuted }]}>
+                        {item.distanceKm} km
+                      </Text>
+                    </>
+                  )}
+                </View>
+              </View>
+              <Pressable
+                style={[styles.bookNowBtn, { backgroundColor: t.color.textPrimary }]}
+                onPress={() => router.push({ pathname: '/(client)/salon/[id]', params: { id: item.id } })}
+              >
+                <Text style={[styles.bookNowText, { color: t.color.bgBase }]}>Book Now</Text>
+              </Pressable>
+            </Pressable>
+          )}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root:          { flex: 1 },
+
+  // Top bar
+  topBar:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingTop: 4, paddingBottom: 0 },
+  topWordmark:   { fontSize: 14, fontWeight: '800', letterSpacing: 2.52 },
+
+  // Title
+  title:         { paddingHorizontal: 22, paddingTop: 16, fontSize: 28, fontWeight: '700', lineHeight: 33 },
+
+  // Segmented
+  segmented:     { flexDirection: 'row', margin: 16, borderRadius: 100, padding: 3 },
+  segment:       { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 100 },
+  segmentText:   { fontSize: 13, fontWeight: '700' },
+
+  // Map container
+  mapContainer:  { flex: 1, position: 'relative' },
+  webview:       { flex: 1 },
+  loader:        { position: 'absolute', top: '50%', left: '50%', zIndex: 10 },
+
+  // Bottom card (selected salon)
+  bottomCard:    { position: 'absolute', left: 12, right: 12, borderRadius: 22, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cardName:      { fontSize: 16, fontWeight: '700' },
+  cardMeta:      { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
+  cardMetaText:  { fontSize: 13, fontWeight: '600' },
+
+  // Shared Book Now
+  bookNowBtn:    { borderRadius: 100, paddingHorizontal: 18, paddingVertical: 11, alignItems: 'center' },
+  bookNowText:   { fontSize: 13, fontWeight: '700' },
+
+  // Nearby list
+  nearbyCard:    { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 18, padding: 16, gap: 12 },
+  nearbyName:    { fontSize: 16, fontWeight: '700' },
+  nearbyMeta:    { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  nearbyMetaText: { fontSize: 12, fontWeight: '600' },
+});

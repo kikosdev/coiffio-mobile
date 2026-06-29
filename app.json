@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "BLACK BOX",
+    "slug": "salon-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "scheme": "salonmobile",
+    "splash": {
+      "backgroundColor": "#0E0E0E"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.coiffio.salonmobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Trouver les salons proches de vous."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0E0E0E"
+      },
+      "package": "com.coiffio.salonmobile",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-font",
+        {
+          "fonts": []
+        }
+      ],
+      "expo-status-bar",
+      "expo-splash-screen"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
