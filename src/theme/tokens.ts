@@ -13,6 +13,7 @@ export const base = {
     tabBorder: '#1E1E1E',
 
     gold: '#F4A62A',
+    goldDeep: '#C07318',
     goldSoft: '#1F1810',
     goldWarm: '#CDB892',
     onGold: '#0E0E0E',
