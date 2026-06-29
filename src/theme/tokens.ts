@@ -23,10 +23,12 @@ export const base = {
 
     success: '#3A8A4A',
     successBg: 'rgba(58,138,74,0.15)',
+    successSoft: 'rgba(58,138,74,0.15)',
     pending: '#8A6A2A',
     pendingBg: 'rgba(138,106,42,0.15)',
     danger: '#8A3A3A',
     dangerBg: 'rgba(138,58,58,0.15)',
+    dangerSoft: 'rgba(138,58,58,0.15)',
 
     proTag: '#F4A62A',
     proTagText: '#0E0E0E',
