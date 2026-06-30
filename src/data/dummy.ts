@@ -347,36 +347,67 @@ export const dummySalons = [
   },
 ];
 
+// Single-salon V1 reference (collapse of multi-salon design)
+export const dummySingleSalon = {
+  id: 'sl1',
+  name: 'Union Square',
+  address: '312 E 14th St, New York',
+  hours: 'Mon–Sat 9:00–21:00',
+  barberCount: 6,
+  todayRevenue: 1420,
+  bookingCount: 32,
+  chairUse: 78,
+  isOpen: true,
+  status: 'open' as const,
+};
+
 export const dummyHQStats = {
   todayRevenue: 3212,
   revenueChange: 9,
   bookingCount: 84,
   barbersOn: 14,
   barbersTotal: 18,
-  avgRating: 4.8,
 };
 
 export const dummyTeam = [
   { id: 'b1', name: 'Richard Anderson', initials: 'RA', salon: 'Union Square', salonColor: '#F4A62A', status: 'active' as const, todayCount: 4, isPro: true,  rating: 4.9 },
   { id: 'b2', name: 'Marcus Bell',      initials: 'MB', salon: 'Union Square', salonColor: '#F4A62A', status: 'break' as const,  todayCount: 3, isPro: false, rating: 4.7 },
   { id: 'b3', name: 'Dawit Alem',       initials: 'DA', salon: 'Union Square', salonColor: '#F4A62A', status: 'off' as const,    todayCount: 0, isPro: false, rating: 4.8 },
-  { id: 'b4', name: 'Theo Brooks',      initials: 'TB', salon: 'SoHo',         salonColor: '#7A9ACB', status: 'active' as const, todayCount: 5, isPro: false, rating: 4.6 },
-  { id: 'b5', name: 'Iván Costa',       initials: 'IC', salon: 'SoHo',         salonColor: '#7A9ACB', status: 'active' as const, todayCount: 4, isPro: false, rating: 4.8 },
-  { id: 'b6', name: 'Jordan Price',     initials: 'JP', salon: 'Brooklyn',     salonColor: '#8A7ACB', status: 'active' as const, todayCount: 2, isPro: false, rating: 4.5 },
+  { id: 'b4', name: 'Theo Brooks',      initials: 'TB', salon: 'Union Square', salonColor: '#F4A62A', status: 'active' as const, todayCount: 5, isPro: false, rating: 4.6 },
+  { id: 'b5', name: 'Iván Costa',       initials: 'IC', salon: 'Union Square', salonColor: '#F4A62A', status: 'active' as const, todayCount: 4, isPro: false, rating: 4.8 },
+  { id: 'b6', name: 'Jordan Price',     initials: 'JP', salon: 'Union Square', salonColor: '#F4A62A', status: 'active' as const, todayCount: 2, isPro: false, rating: 4.5 },
 ];
+
+export type BarberDetail = {
+  yearsExp: number;
+  weekRevenue: number;
+  weekCuts: number;
+  weekUtil: number[]; // Mon–Sun (0–100), 0 = closed/day off
+};
+
+export const dummyBarberDetails: Record<string, BarberDetail> = {
+  b1: { yearsExp: 6, weekRevenue: 2940, weekCuts: 61, weekUtil: [60, 80, 70, 95, 85, 100, 0] },
+  b2: { yearsExp: 3, weekRevenue: 1890, weekCuts: 45, weekUtil: [50, 70, 60, 80, 75, 85,  0] },
+  b3: { yearsExp: 4, weekRevenue: 1260, weekCuts: 32, weekUtil: [40,  0, 55, 70, 60,  0,  0] },
+  b4: { yearsExp: 5, weekRevenue: 2100, weekCuts: 50, weekUtil: [65, 75, 70, 85, 80, 95,  0] },
+  b5: { yearsExp: 2, weekRevenue: 1680, weekCuts: 40, weekUtil: [55, 65, 60, 75, 70, 80,  0] },
+  b6: { yearsExp: 1, weekRevenue:  840, weekCuts: 22, weekUtil: [30, 50, 45, 60, 55, 70,  0] },
+};
 
 export const dummyAnalytics = {
   monthRevenue: 74180,
   revenueChange: 14,
-  bySalon: [
-    { name: 'Union Square', revenue: 31400, pct: 84 },
-    { name: 'SoHo',         revenue: 26200, pct: 70 },
-    { name: 'Brooklyn',     revenue: 16580, pct: 44 },
+  byStaff: [
+    { name: 'Richard Anderson', revenue: 11800, pct: 100 },
+    { name: 'Iván Costa',       revenue: 9400,  pct: 80  },
+    { name: 'Theo Brooks',      revenue: 8700,  pct: 74  },
+    { name: 'Marcus Bell',      revenue: 7200,  pct: 61  },
+    { name: 'Dawit Alem',       revenue: 6100,  pct: 52  },
   ],
   topBarbers: [
     { rank: 1, name: 'Richard Anderson', initials: 'RA', salon: 'Union Square', revenue: 11800 },
-    { rank: 2, name: 'Iván Costa',       initials: 'IC', salon: 'SoHo',         revenue: 9400  },
-    { rank: 3, name: 'Theo Brooks',      initials: 'TB', salon: 'SoHo',         revenue: 8700  },
+    { rank: 2, name: 'Iván Costa',       initials: 'IC', salon: 'Union Square', revenue: 9400  },
+    { rank: 3, name: 'Theo Brooks',      initials: 'TB', salon: 'Union Square', revenue: 8700  },
   ],
   weekChart: [8200, 9400, 10100, 11800, 12400, 10200, 12080],
 };

@@ -92,9 +92,8 @@ export default function ChooseRole() {
   const setRole = useRoleStore((s) => s.setRole);
   const insets = useSafeAreaInsets();
 
-  function pick(role: Role, route: string) {
-    setRole(role);
-    router.replace(route as any);
+  function pick(role: Role) {
+    router.push({ pathname: '/(auth)/login', params: { role } } as never);
   }
 
   return (
@@ -126,10 +125,10 @@ export default function ChooseRole() {
 
       {/* Role cards */}
       <View style={styles.cards}>
-        {ROLES.map(({ key, title, sub, Icon, badge, route }) => (
+        {ROLES.map(({ key, title, sub, Icon, badge }) => (
           <Pressable
             key={key}
-            onPress={() => pick(key, route)}
+            onPress={() => pick(key)}
             android_ripple={{ color: 'rgba(255,255,255,0.04)' }}
             style={({ pressed }) => [
               styles.card,
@@ -183,7 +182,7 @@ export default function ChooseRole() {
       {/* Footer */}
       <View style={styles.footer}>
         <Text style={[styles.footerText, { color: t.color.textMuted }]}>New here? </Text>
-        <Pressable onPress={() => router.push('/(auth)/register' as any)}>
+        <Pressable onPress={() => router.push('/(auth)/create-account' as any)}>
           <Text style={[styles.footerLink, { color: t.color.gold }]}>Create an account</Text>
         </Pressable>
       </View>
