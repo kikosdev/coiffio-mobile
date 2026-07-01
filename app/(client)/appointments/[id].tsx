@@ -95,7 +95,7 @@ export default function AppointmentDetailScreen() {
       salonName: appt.salon.name,
     });
     appt.services.forEach((s) => {
-      draft.addService({ id: `reschedule-${s.name}`, name: s.name, desc: '', durationMin: appt.durationMin, price: s.price });
+      draft.addService({ id: s.id, name: s.name, desc: '', durationMin: appt.durationMin, price: s.price });
     });
     router.push('/(client)/booking/datetime');
   };

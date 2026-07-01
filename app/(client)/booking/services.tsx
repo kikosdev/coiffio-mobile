@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
-import { dummyServices } from '../../../src/data/dummy';
+import { fetchCatalog, type BookService } from '../../../src/api/booking';
 import { formatMoney } from '../../../src/utils/formatMoney';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -69,6 +69,15 @@ export default function ServicesScreen() {
   const insets = useSafeAreaInsets();
   const draft = useBookingDraft();
   const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [catalog, setCatalog] = useState<BookService[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCatalog()
+      .then(setCatalog)
+      .catch(() => setCatalog([]))
+      .finally(() => setCatalogLoading(false));
+  }, []);
 
   const packActive = !!draft.pack;
   const canContinue = draft.services.length > 0;
@@ -92,7 +101,7 @@ export default function ServicesScreen() {
         {/* Title */}
         <Text style={[styles.title, { color: t.color.textPrimary }]}>Your services</Text>
         <Text style={[styles.subtitle, { color: t.color.textMuted }]}>
-          {draft.services.length} selected · {draft.barberName}
+          {draft.services.length} selected{draft.barberName ? ` · ${draft.barberName}` : ''}
         </Text>
 
         {/* Pack banner */}
@@ -172,7 +181,7 @@ export default function ServicesScreen() {
             },
           ]}
           disabled={!canContinue}
-          onPress={() => router.push('/(client)/booking/datetime')}
+          onPress={() => router.push('/(client)/booking/stylist')}
         >
           <Text style={[styles.ctaBtnText, { color: canContinue ? t.color.bgBase : t.color.textMuted }]}>
             Continue
@@ -192,35 +201,39 @@ export default function ServicesScreen() {
           <View style={[styles.sheetHandle, { backgroundColor: t.color.borderStrong }]} />
           <Text style={[styles.sheetTitle, { color: t.color.textPrimary }]}>Add a service</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {dummyServices.map((s) => {
-              const alreadyAdded = draft.services.some((ds) => ds.id === s.id);
-              return (
-                <Pressable
-                  key={s.id}
-                  style={({ pressed }) => [
-                    styles.catalogueItem,
-                    {
-                      borderBottomColor: t.color.borderSubtle,
-                      backgroundColor: pressed ? t.color.surfaceElevated : 'transparent',
-                      opacity: alreadyAdded ? 0.45 : 1,
-                    },
-                  ]}
-                  disabled={alreadyAdded}
-                  onPress={() => {
-                    draft.addService({ id: s.id, name: s.name, desc: s.description, durationMin: s.duration, price: s.price });
-                    setCatalogueOpen(false);
-                  }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.catalogueName, { color: t.color.textPrimary }]}>{s.name}</Text>
-                    <Text style={[styles.catalogueMeta, { color: t.color.textMuted }]}>
-                      {s.duration} min · {formatMoney(s.price)}
-                    </Text>
-                  </View>
-                  {alreadyAdded && <CheckIcon color={t.color.gold} />}
-                </Pressable>
-              );
-            })}
+            {catalogLoading ? (
+              <Text style={[styles.catalogueMeta, { color: t.color.textMuted, paddingVertical: 20 }]}>Loading…</Text>
+            ) : (
+              catalog.map((s) => {
+                const alreadyAdded = draft.services.some((ds) => ds.id === s._id);
+                return (
+                  <Pressable
+                    key={s._id}
+                    style={({ pressed }) => [
+                      styles.catalogueItem,
+                      {
+                        borderBottomColor: t.color.borderSubtle,
+                        backgroundColor: pressed ? t.color.surfaceElevated : 'transparent',
+                        opacity: alreadyAdded ? 0.45 : 1,
+                      },
+                    ]}
+                    disabled={alreadyAdded}
+                    onPress={() => {
+                      draft.addService({ id: s._id, name: s.name, desc: s.category, durationMin: s.durationMin, price: s.price });
+                      setCatalogueOpen(false);
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.catalogueName, { color: t.color.textPrimary }]}>{s.name}</Text>
+                      <Text style={[styles.catalogueMeta, { color: t.color.textMuted }]}>
+                        {s.durationMin} min · {formatMoney(s.price)}
+                      </Text>
+                    </View>
+                    {alreadyAdded && <CheckIcon color={t.color.gold} />}
+                  </Pressable>
+                );
+              })
+            )}
           </ScrollView>
         </View>
       </Modal>

@@ -9,6 +9,8 @@ import { useAppointments, type Appointment, type AppointmentStatus } from '../..
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
 import { useAuthStore } from '../../../src/stores/auth';
 import { formatMoney } from '../../../src/utils/formatMoney';
+import { formatSalonDate, formatSalonTime } from '../../../src/utils/salonTime';
+import { listGuestBookings, type GuestBookingRef } from '../../../src/storage/guestBookings';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -108,7 +110,7 @@ function NextVisitCard({ appt }: { appt: Appointment }) {
       salonName: appt.salon.name,
     });
     appt.services.forEach((s) => {
-      draft.addService({ id: `reschedule-${s.name}`, name: s.name, desc: '', durationMin: appt.durationMin, price: s.price });
+      draft.addService({ id: s.id, name: s.name, desc: '', durationMin: appt.durationMin, price: s.price });
     });
     router.push('/(client)/booking/datetime');
   };
@@ -213,7 +215,7 @@ function HistoryRow({ appt }: { appt: Appointment }) {
       salonName: appt.salon.name,
     });
     appt.services.forEach((s) => {
-      draft.addService({ id: `hist-${s.name}`, name: s.name, desc: '', durationMin: 30, price: s.price });
+      draft.addService({ id: s.id, name: s.name, desc: '', durationMin: 30, price: s.price });
     });
     router.push('/(client)/booking/datetime');
   };
@@ -258,11 +260,21 @@ export default function AppointmentsScreen() {
   const store = useAppointments();
   const user = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<'upcoming' | 'history'>('upcoming');
+  const [guestBookings, setGuestBookings] = useState<GuestBookingRef[]>([]);
+  const [guestLoading, setGuestLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     store.fetchUpcoming();
     store.fetchHistory();
+  }, [user]);
+
+  useEffect(() => {
+    if (user) return;
+    listGuestBookings()
+      .then(setGuestBookings)
+      .catch(() => setGuestBookings([]))
+      .finally(() => setGuestLoading(false));
   }, [user]);
 
   const upcomingList = store.upcoming();
@@ -273,19 +285,65 @@ export default function AppointmentsScreen() {
   const totalSpent = store.totalSpentThisYear();
   const completed = store.completedCount();
 
+  // Guests are never blocked from booking — only the "sign in for history/sync" nudge is gated.
   if (!user) {
     return (
-      <View style={[styles.root, styles.guestRoot, { backgroundColor: t.color.bgBase }]}>
-        <Text style={[styles.title, { color: t.color.textPrimary }]}>Appointments</Text>
-        <Text style={[styles.empty, { color: t.color.textMuted }]}>
-          Sign in to see your bookings.
-        </Text>
-        <Pressable
-          style={[styles.guestLoginBtn, { backgroundColor: t.color.gold }]}
-          onPress={() => router.push('/(auth)/login?role=client' as never)}
+      <View style={[styles.root, { backgroundColor: t.color.bgBase }]}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 24 }]}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.guestLoginText, { color: t.color.onGold }]}>Sign in</Text>
-        </Pressable>
+          <Text style={[styles.title, { color: t.color.textPrimary }]}>Appointments</Text>
+
+          {guestLoading ? (
+            <Text style={[styles.empty, { color: t.color.textMuted }]}>Loading…</Text>
+          ) : guestBookings.length === 0 ? (
+            <View style={styles.guestEmpty}>
+              <Text style={[styles.empty, { color: t.color.textMuted }]}>
+                Sign in to sync your bookings across devices, or reserve now as a guest.
+              </Text>
+              <Pressable
+                style={[styles.guestLoginBtn, { backgroundColor: t.color.gold }]}
+                onPress={() => router.push('/(auth)/login?role=client' as never)}
+              >
+                <Text style={[styles.guestLoginText, { color: t.color.onGold }]}>Sign in</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.guestGuestBtn, { borderColor: t.color.borderStrong }]}
+                onPress={() => router.push('/(client)/booking/services')}
+              >
+                <Text style={[styles.guestGuestText, { color: t.color.textPrimary }]}>Reserve as guest</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              {guestBookings.map((b) => (
+                <View key={b.appointmentId} style={[styles.upcomingRow, { backgroundColor: t.color.surfaceCard }]}>
+                  <View style={styles.upcomingTop}>
+                    <Text style={[styles.upcomingDate, { color: t.color.textMuted }]}>
+                      {formatSalonDate(b.start, 'MMM d · EEEE').toUpperCase()}
+                    </Text>
+                    <View style={[styles.badge, { backgroundColor: t.color.successSoft }]}>
+                      <Text style={[styles.badgeText, { color: t.color.success }]}>CONFIRMED</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.upcomingBarber, { color: t.color.textPrimary }]}>{b.barberName || b.salonName}</Text>
+                  <Text style={[styles.upcomingService, { color: t.color.textMuted }]}>
+                    {b.serviceName} · {formatSalonTime(b.start)}
+                  </Text>
+                  <Text style={[styles.historyAmount, { color: t.color.textPrimary, marginTop: 6 }]}>{formatMoney(b.price)}</Text>
+                </View>
+              ))}
+              <Pressable
+                style={[styles.guestGuestBtn, { borderColor: t.color.borderStrong }]}
+                onPress={() => router.push('/(client)/booking/services')}
+              >
+                <Text style={[styles.guestGuestText, { color: t.color.textPrimary }]}>Book again</Text>
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
       </View>
     );
   }
@@ -362,9 +420,11 @@ const styles = StyleSheet.create({
   title:   { fontSize: 27, fontWeight: '800', marginBottom: 14 },
   empty:   { fontSize: 14, fontWeight: '500', marginTop: 32, textAlign: 'center' },
 
-  guestRoot:     { paddingHorizontal: 22, paddingTop: 60, alignItems: 'center' },
+  guestEmpty:    { alignItems: 'center', paddingTop: 40 },
   guestLoginBtn: { marginTop: 20, borderRadius: 100, paddingVertical: 13, paddingHorizontal: 28 },
   guestLoginText: { fontSize: 14, fontWeight: '700' },
+  guestGuestBtn: { marginTop: 12, borderRadius: 100, paddingVertical: 13, paddingHorizontal: 28, borderWidth: 1 },
+  guestGuestText: { fontSize: 14, fontWeight: '700' },
 
   // Toggle
   toggleRow:  { flexDirection: 'row', gap: 8, marginBottom: 18 },

@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { format, parse } from 'date-fns';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
+import { useAuthStore } from '../../../src/stores/auth';
+import { saveGuestBooking } from '../../../src/storage/guestBookings';
+import { formatSalonDate, formatSalonTime } from '../../../src/utils/salonTime';
 import { formatMoney } from '../../../src/utils/formatMoney';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -41,19 +43,32 @@ export default function ConfirmationScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const draft = useBookingDraft();
+  const user = useAuthStore((s) => s.user);
+  const result = draft.result;
 
-  const bookingRef = useMemo(() => {
-    const n = Math.floor(10000 + Math.random() * 90000);
-    return `BB-${n}`;
-  }, []);
-
-  const dateLabel = draft.date
-    ? format(parse(draft.date, 'yyyy-MM-dd', new Date()), 'EEE, MMM d')
-    : '—';
-  const timeLabel = draft.time ?? '—';
   const serviceNames = draft.pack
     ? [draft.pack.name]
     : draft.services.map((s) => s.name);
+
+  const bookingRef = result ? `#${result._id.slice(-8).toUpperCase()}` : '—';
+  const dateLabel = result ? formatSalonDate(result.start) : '—';
+  const timeLabel = result ? formatSalonTime(result.start) : '—';
+  const amountDue = result ? result.price : draft.total();
+
+  // Guests have no account — persist a local reference so the Bookings tab can show it.
+  useEffect(() => {
+    if (user || !result) return;
+    saveGuestBooking({
+      appointmentId: result._id,
+      manageToken: result.manageToken,
+      salonName: draft.salonName,
+      serviceName: serviceNames.join(' · '),
+      barberName: draft.barberName,
+      start: result.start,
+      price: result.price,
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result?._id]);
 
   const handleAddToCalendar = () => {
     // V1 stub — replace with expo-calendar when installed
@@ -89,9 +104,6 @@ export default function ConfirmationScreen() {
           {/* Barber row */}
           <View style={styles.barberRow}>
             <Text style={[styles.recapBarber, { color: t.color.textPrimary }]}>{draft.barberName}</Text>
-            <View style={[styles.proBadge, { backgroundColor: t.color.gold }]}>
-              <Text style={[styles.proBadgeText, { color: t.color.onGold }]}>PRO</Text>
-            </View>
           </View>
           <Text style={[styles.recapSalon, { color: t.color.textMuted }]}>{draft.salonName}</Text>
 
@@ -120,7 +132,7 @@ export default function ConfirmationScreen() {
           <View style={styles.recapRow}>
             <Text style={[styles.recapKey, { color: t.color.textMuted }]}>To pay</Text>
             <Text style={[styles.recapVal, { color: t.color.textPrimary }]}>
-              {formatMoney(draft.total())} · cash
+              {formatMoney(amountDue)} · cash
             </Text>
           </View>
         </View>
@@ -128,9 +140,15 @@ export default function ConfirmationScreen() {
         {/* ── Ref pill ── */}
         <View style={[styles.refPill, { backgroundColor: t.color.surfaceElevated }]}>
           <Text style={[styles.refText, { color: t.color.textSecondary }]}>
-            #{bookingRef}  ·  show this on arrival
+            {bookingRef}  ·  show this on arrival
           </Text>
         </View>
+
+        {!user && result?.manageToken && (
+          <Text style={[styles.trackingNote, { color: t.color.textMuted }]}>
+            A tracking link has been sent to your email to manage this booking.
+          </Text>
+        )}
 
         {/* ── CTAs ── */}
         <Pressable
@@ -168,8 +186,6 @@ const styles = StyleSheet.create({
   recapCard:     { width: '100%', borderRadius: 18, padding: 18, marginTop: 24 },
   barberRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
   recapBarber:   { fontSize: 16, fontWeight: '700' },
-  proBadge:      { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 3 },
-  proBadgeText:  { fontSize: 9, fontWeight: '800' },
   recapSalon:    { fontSize: 13, fontWeight: '500', marginTop: 3 },
   divider:       { height: 1, marginVertical: 14 },
   recapRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingVertical: 5 },
@@ -180,6 +196,7 @@ const styles = StyleSheet.create({
   // Ref pill
   refPill:       { borderRadius: 100, paddingHorizontal: 20, paddingVertical: 10, marginTop: 16 },
   refText:       { fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  trackingNote:  { fontSize: 12, fontWeight: '500', marginTop: 12, textAlign: 'center', paddingHorizontal: 20 },
 
   // CTAs
   calBtn:        { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 100, height: 56, paddingHorizontal: 32, marginTop: 24 },

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
-import { dummyBarberProfiles, dummySalonProfiles } from '../../../src/data/dummy';
+import { fetchBookableStylists, type PublicStylist } from '../../../src/api/booking';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -35,14 +35,6 @@ function HeartIcon({ color, filled }: { color: string; filled: boolean }) {
   );
 }
 
-function StarIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <Path d="M12 2l2.9 6 6.6.6-5 4.3 1.5 6.5L12 16.5 6 20l1.5-6.6-5-4.3 6.6-.6z" />
-    </Svg>
-  );
-}
-
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 type Tab = 'portfolio' | 'reviews';
@@ -50,19 +42,28 @@ type Tab = 'portfolio' | 'reviews';
 export default function BarberProfile() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { id, salonId } = useLocalSearchParams<{ id: string; salonId: string }>();
+  const { id, salonId, salonName } = useLocalSearchParams<{ id: string; salonId: string; salonName: string }>();
   const draft = useBookingDraft();
 
-  const barber = dummyBarberProfiles.find((b) => b.id === id) ?? dummyBarberProfiles[0];
-  const salon  = dummySalonProfiles.find((s) => s.id === salonId);
-
+  const [barber, setBarber] = useState<PublicStylist | null>(null);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('portfolio');
   const [isFav, setIsFav] = useState(false);
 
+  useEffect(() => {
+    fetchBookableStylists()
+      .then((team) => setBarber(team.find((s) => s.id === id) ?? null))
+      .catch(() => setBarber(null))
+      .finally(() => setLoading(false));
+  }, [id]);
+
   const handleBook = () => {
-    draft.init(salonId ?? '', barber.id, {
-      barberName: barber.name,
-      salonName: salon?.name ?? '',
+    // Still a separate choice from the booking stack's own "Choose your stylist" step
+    // (booking/stylist.tsx) by design — unifying that redundancy is a separate UX decision,
+    // not this fix. We only seed the salon context here, real or not.
+    draft.init(salonId ?? '', '', {
+      barberName: '',
+      salonName: salonName ?? '',
     });
     router.push('/(client)/booking/services');
   };
@@ -96,19 +97,15 @@ export default function BarberProfile() {
         <View style={styles.headerBlock}>
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.barberName, { color: t.color.textPrimary }]}>{barber.name}</Text>
-              <View style={styles.subRow}>
-                <StarIcon size={14} color={t.color.gold} />
-                <Text style={[styles.ratingText, { color: t.color.textSecondary }]}>
-                  {barber.rating} ({barber.reviews})
+              <Text style={[styles.barberName, { color: t.color.textPrimary }]}>
+                {loading ? '…' : barber?.name ?? 'Stylist not found'}
+              </Text>
+              {/* Rating/reviews omitted: no real data source yet, never fabricated */}
+              {barber && (barber.title || barber.role) && (
+                <Text style={[styles.roleText, { color: t.color.textSecondary }]}>
+                  {barber.title || barber.role}
                 </Text>
-                {barber.isPro && (
-                  <>
-                    <Text style={[styles.subDot, { color: t.color.textMuted }]}>·</Text>
-                    <Text style={[styles.proBadge, { color: t.color.gold }]}>PRO BARBER</Text>
-                  </>
-                )}
-              </View>
+              )}
             </View>
             <Pressable
               onPress={() => setIsFav((v) => !v)}
@@ -118,6 +115,9 @@ export default function BarberProfile() {
               <HeartIcon color={isFav ? t.color.gold : t.color.textSecondary} filled={isFav} />
             </Pressable>
           </View>
+          {barber?.bio ? (
+            <Text style={[styles.bioText, { color: t.color.textMuted }]}>{barber.bio}</Text>
+          ) : null}
         </View>
 
         {/* ── Tab pills ── */}
@@ -177,7 +177,7 @@ export default function BarberProfile() {
 const styles = StyleSheet.create({
   root:           { flex: 1 },
   hero:           { height: 220, position: 'relative' },
-  heroImg:        { ...StyleSheet.absoluteFillObject },
+  heroImg:        { ...StyleSheet.absoluteFill },
   circleBtn:      {
     position: 'absolute',
     width: 44, height: 44, borderRadius: 22,
@@ -187,10 +187,8 @@ const styles = StyleSheet.create({
   headerBlock:    { paddingHorizontal: 20, marginTop: 18 },
   headerRow:      { flexDirection: 'row', alignItems: 'center', gap: 12 },
   barberName:     { fontSize: 24, fontWeight: '700', lineHeight: 28 },
-  subRow:         { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  ratingText:     { fontSize: 13, fontWeight: '600' },
-  subDot:         { fontSize: 13 },
-  proBadge:       { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  roleText:       { fontSize: 13, fontWeight: '600', marginTop: 6 },
+  bioText:        { fontSize: 13, fontWeight: '400', lineHeight: 19, marginTop: 10 },
   favBtn:         { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   tabsRow:        { flexDirection: 'row', gap: 8, marginTop: 18, paddingHorizontal: 20 },
   tabPill:        { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 100 },

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../api/client';
 import { useAuthStore } from './auth';
+import { listSalons, type PublicSalon } from '../api/salons';
 
 export interface LatestVisit {
   appointmentId: string;
@@ -30,8 +31,12 @@ interface HomeState {
   loadingLatest: boolean;
   nearby: NearbySalon[];
   loadingNearby: boolean;
+  salons: PublicSalon[];
+  loadingSalons: boolean;
+  salonsError: boolean;
   fetchLatestVisit: () => Promise<void>;
   fetchNearby: (lat: number, lng: number, radiusKm: number) => Promise<void>;
+  fetchSalons: () => Promise<void>;
 }
 
 export const useHomeStore = create<HomeState>((set) => ({
@@ -39,6 +44,9 @@ export const useHomeStore = create<HomeState>((set) => ({
   loadingLatest: false,
   nearby: [],
   loadingNearby: false,
+  salons: [],
+  loadingSalons: true,
+  salonsError: false,
 
   fetchLatestVisit: async () => {
     if (!useAuthStore.getState().user) return; // guest — section stays hidden
@@ -58,6 +66,17 @@ export const useHomeStore = create<HomeState>((set) => ({
       set({ nearby: data, loadingNearby: false });
     } catch {
       set({ nearby: [], loadingNearby: false });
+    }
+  },
+
+  // Drives the list-vs-Nearby switch (SKILL_home_list_all_salons, NEARBY_THRESHOLD).
+  fetchSalons: async () => {
+    set({ loadingSalons: true, salonsError: false });
+    try {
+      const data = await listSalons();
+      set({ salons: data, loadingSalons: false });
+    } catch {
+      set({ salons: [], loadingSalons: false, salonsError: true });
     }
   },
 }));

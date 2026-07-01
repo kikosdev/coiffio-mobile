@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, Modal, StyleSheet,
 } from 'react-native';
@@ -6,7 +6,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
-import { dummySalonProfiles } from '../../../src/data/dummy';
+import { getSalon, type PublicSalon } from '../../../src/api/salons';
+import { fetchBookableStylists, fetchCatalog, type PublicStylist } from '../../../src/api/booking';
+import { formatMoney } from '../../../src/utils/formatMoney';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -34,23 +36,6 @@ function HeartIcon({ color, filled }: { color: string; filled: boolean }) {
   );
 }
 
-function StarIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <Path d="M12 2l2.9 6 6.6.6-5 4.3 1.5 6.5L12 16.5 6 20l1.5-6.6-5-4.3 6.6-.6z" />
-    </Svg>
-  );
-}
-
-function MapPinIcon({ color }: { color: string }) {
-  return (
-    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
-      <Path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11z" />
-      <Circle cx={12} cy={10} r={2.3} />
-    </Svg>
-  );
-}
-
 function TagIcon({ color }: { color: string }) {
   return (
     <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -72,6 +57,10 @@ function Badge({ label, variant, t }: { label: string; variant: 'gold' | 'dark';
   );
 }
 
+function initialsOf(name: string): string {
+  return name.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 const MAX_VISIBLE = 4;
@@ -83,14 +72,56 @@ export default function SalonProfile() {
   const [isFav, setIsFav] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const salon = dummySalonProfiles.find((s) => s.id === id) ?? dummySalonProfiles[0];
+  const [salon, setSalon] = useState<PublicSalon | null>(null);
+  const [staff, setStaff] = useState<PublicStylist[]>([]);
+  const [fromPrice, setFromPrice] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const visibleBarbers = salon.barbers.slice(0, MAX_VISIBLE);
-  const extraCount = salon.barbers.length - MAX_VISIBLE;
+  const load = () => {
+    if (!id) return;
+    setLoading(true);
+    setError(false);
+    Promise.all([getSalon(id), fetchBookableStylists(), fetchCatalog()])
+      .then(([s, team, catalog]) => {
+        setSalon(s);
+        setStaff(team);
+        setFromPrice(catalog.length ? Math.min(...catalog.map((c) => c.price)) : null);
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, [id]);
+
+  const visibleBarbers = staff.slice(0, MAX_VISIBLE);
+  const extraCount = staff.length - MAX_VISIBLE;
 
   const goToBarber = (barberId: string) => {
-    router.push({ pathname: '/(client)/barber/[id]', params: { id: barberId, salonId: salon.id } });
+    router.push({
+      pathname: '/(client)/barber/[id]',
+      params: { id: barberId, salonId: id ?? '', salonName: salon?.name ?? '' },
+    });
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.root, styles.centered, { backgroundColor: t.color.bgBase }]}>
+        <Text style={{ color: t.color.textMuted }}>Loading…</Text>
+      </View>
+    );
+  }
+
+  if (error || !salon) {
+    return (
+      <View style={[styles.root, styles.centered, { backgroundColor: t.color.bgBase }]}>
+        <Text style={{ color: t.color.textMuted, marginBottom: 14 }}>Couldn't load this salon.</Text>
+        <Pressable onPress={load} style={[styles.ctaBtn, { backgroundColor: t.color.textPrimary, paddingHorizontal: 28, alignSelf: 'center' }]}>
+          <Text style={[styles.ctaBtnText, { color: t.color.bgBase }]}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: t.color.bgBase }]}>
@@ -124,55 +155,62 @@ export default function SalonProfile() {
           <Text style={[styles.salonName, { color: t.color.textPrimary }]} numberOfLines={1}>
             {salon.name}
           </Text>
-          <Badge label={salon.isOpen ? 'OPEN' : 'CLOSED'} variant={salon.isOpen ? 'gold' : 'dark'} t={t} />
+          {salon.isOpen != null && (
+            <Badge label={salon.isOpen ? 'OPEN' : 'CLOSED'} variant={salon.isOpen ? 'gold' : 'dark'} t={t} />
+          )}
         </View>
 
-        {/* Meta row */}
-        <View style={styles.metaRow}>
-          <StarIcon size={14} color={t.color.gold} />
-          <Text style={[styles.metaText, { color: t.color.textSecondary }]}>
-            {salon.rating} ({salon.reviews})
-          </Text>
-          <Text style={[styles.metaSep, { color: t.color.textMuted }]}>·</Text>
-          <MapPinIcon color={t.color.textMuted} />
-          <Text style={[styles.metaText, { color: t.color.textSecondary }]}>{salon.distanceKm} km</Text>
-          <Text style={[styles.metaSep, { color: t.color.textMuted }]}>·</Text>
-          <TagIcon color={t.color.textMuted} />
-          <Text style={[styles.metaText, { color: t.color.textSecondary }]}>from ${salon.priceFrom}</Text>
-        </View>
-
-        {/* Description */}
-        <Text style={[styles.description, { color: t.color.textMuted }]}>{salon.description}</Text>
+        {/* Meta row — rating/distance omitted: no real data source yet, never fabricated */}
+        {(salon.address || fromPrice != null) && (
+          <View style={styles.metaRow}>
+            {salon.address !== '' && (
+              <Text style={[styles.metaText, { color: t.color.textSecondary }]} numberOfLines={1}>
+                {salon.address}
+              </Text>
+            )}
+            {fromPrice != null && (
+              <>
+                {salon.address !== '' && <Text style={[styles.metaSep, { color: t.color.textMuted }]}>·</Text>}
+                <TagIcon color={t.color.textMuted} />
+                <Text style={[styles.metaText, { color: t.color.textSecondary }]}>from {formatMoney(fromPrice)}</Text>
+              </>
+            )}
+          </View>
+        )}
 
         {/* OUR BARBERS */}
         <Text style={[styles.eyebrow, { color: t.color.textMuted }]}>OUR BARBERS</Text>
-        <View style={styles.barbersRow}>
-          {visibleBarbers.map((b) => (
-            <Pressable
-              key={b.id}
-              style={({ pressed }) => [styles.barberItem, { opacity: pressed ? 0.75 : 1 }]}
-              onPress={() => goToBarber(b.id)}
-            >
-              <View style={[styles.avatarCircle, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}>
-                <Text style={[styles.avatarInitials, { color: t.color.gold }]}>{b.initials}</Text>
-              </View>
-              <Text style={[styles.barberFirstName, { color: t.color.textSecondary }]} numberOfLines={1}>
-                {b.name.split(' ')[0]}
-              </Text>
-            </Pressable>
-          ))}
-          {extraCount > 0 && (
-            <Pressable
-              style={({ pressed }) => [styles.barberItem, { opacity: pressed ? 0.75 : 1 }]}
-              onPress={() => setSheetOpen(true)}
-            >
-              <View style={[styles.avatarCircle, { backgroundColor: t.color.surfaceElevated, borderColor: t.color.borderSubtle }]}>
-                <Text style={[styles.avatarMore, { color: t.color.textSecondary }]}>+{extraCount}</Text>
-              </View>
-              <Text style={[styles.barberFirstName, { color: t.color.textMuted }]}>More</Text>
-            </Pressable>
-          )}
-        </View>
+        {staff.length === 0 ? (
+          <Text style={{ color: t.color.textMuted, fontSize: 13 }}>No stylists available right now.</Text>
+        ) : (
+          <View style={styles.barbersRow}>
+            {visibleBarbers.map((b) => (
+              <Pressable
+                key={b.id}
+                style={({ pressed }) => [styles.barberItem, { opacity: pressed ? 0.75 : 1 }]}
+                onPress={() => goToBarber(b.id)}
+              >
+                <View style={[styles.avatarCircle, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}>
+                  <Text style={[styles.avatarInitials, { color: t.color.gold }]}>{initialsOf(b.name)}</Text>
+                </View>
+                <Text style={[styles.barberFirstName, { color: t.color.textSecondary }]} numberOfLines={1}>
+                  {b.name.split(' ')[0]}
+                </Text>
+              </Pressable>
+            ))}
+            {extraCount > 0 && (
+              <Pressable
+                style={({ pressed }) => [styles.barberItem, { opacity: pressed ? 0.75 : 1 }]}
+                onPress={() => setSheetOpen(true)}
+              >
+                <View style={[styles.avatarCircle, { backgroundColor: t.color.surfaceElevated, borderColor: t.color.borderSubtle }]}>
+                  <Text style={[styles.avatarMore, { color: t.color.textSecondary }]}>+{extraCount}</Text>
+                </View>
+                <Text style={[styles.barberFirstName, { color: t.color.textMuted }]}>More</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       {/* ── Fixed CTA ── */}
@@ -216,14 +254,14 @@ export default function SalonProfile() {
         >
           <View style={[styles.sheetHandle, { backgroundColor: t.color.borderStrong }]} />
           <Text style={[styles.sheetTitle, { color: t.color.textPrimary }]}>Choose a Barber</Text>
-          {salon.barbers.map((b, i) => (
+          {staff.map((b, i) => (
             <Pressable
               key={b.id}
               style={({ pressed }) => [
                 styles.sheetItem,
                 {
                   borderBottomColor: t.color.borderSubtle,
-                  borderBottomWidth: i < salon.barbers.length - 1 ? 1 : 0,
+                  borderBottomWidth: i < staff.length - 1 ? 1 : 0,
                   backgroundColor: pressed ? t.color.surfaceElevated : 'transparent',
                 },
               ]}
@@ -233,7 +271,7 @@ export default function SalonProfile() {
               }}
             >
               <View style={[styles.sheetAvatar, { backgroundColor: t.color.surfaceElevated }]}>
-                <Text style={[styles.sheetAvatarText, { color: t.color.gold }]}>{b.initials}</Text>
+                <Text style={[styles.sheetAvatarText, { color: t.color.gold }]}>{initialsOf(b.name)}</Text>
               </View>
               <Text style={[styles.sheetItemName, { color: t.color.textPrimary }]}>{b.name}</Text>
               <ChevronRight color={t.color.textMuted} />
@@ -247,10 +285,11 @@ export default function SalonProfile() {
 
 const styles = StyleSheet.create({
   root:            { flex: 1 },
+  centered:        { alignItems: 'center', justifyContent: 'center', padding: 24 },
 
   // Hero
   hero:            { height: 220, position: 'relative' },
-  heroImg:         { ...StyleSheet.absoluteFillObject },
+  heroImg:         { ...StyleSheet.absoluteFill },
   circleBtn:       {
     position: 'absolute',
     width: 44, height: 44, borderRadius: 22,
@@ -270,12 +309,9 @@ const styles = StyleSheet.create({
   badgeText:       { fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
 
   // Meta row
-  metaRow:         { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 },
+  metaRow:         { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, flexWrap: 'wrap' },
   metaText:        { fontSize: 13, fontWeight: '600' },
   metaSep:         { fontSize: 13, marginHorizontal: 2 },
-
-  // Description
-  description:     { fontSize: 14, lineHeight: 21, marginTop: 14 },
 
   // Barbers section
   eyebrow:         { fontSize: 11, fontWeight: '800', letterSpacing: 1.54, marginTop: 24, marginBottom: 14 },

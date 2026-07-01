@@ -9,6 +9,7 @@ import { useAuthStore } from '../../src/stores/auth';
 import { useUserLocation } from '../../src/hooks/useUserLocation';
 import { useSettingsStore, RADIUS_OPTIONS_KM } from '../../src/stores/settings';
 import { useHomeStore } from '../../src/stores/home';
+import { NEARBY_THRESHOLD } from '../../src/config';
 
 // ── Icon helpers ─────────────────────────────────────────────────────────────
 
@@ -78,17 +79,29 @@ export default function ClientHome() {
   const searchRadiusKm = useSettingsStore((s) => s.searchRadiusKm);
   const setSearchRadiusKm = useSettingsStore((s) => s.setSearchRadiusKm);
 
-  const { latestVisit, loadingLatest, nearby, loadingNearby, fetchLatestVisit, fetchNearby } = useHomeStore();
+  const {
+    latestVisit, loadingLatest, nearby, loadingNearby,
+    salons, loadingSalons, salonsError, fetchLatestVisit, fetchNearby, fetchSalons,
+  } = useHomeStore();
 
   useEffect(() => {
     fetchLatestVisit();
   }, [user, fetchLatestVisit]);
+
+  // Decides the list-vs-Nearby switch below — Nearby's own geoloc fetch stays untouched.
+  useEffect(() => {
+    fetchSalons();
+  }, [fetchSalons]);
 
   useEffect(() => {
     if (locStatus === 'granted' && coords) {
       fetchNearby(coords.lat, coords.lng, searchRadiusKm);
     }
   }, [locStatus, coords, searchRadiusKm, fetchNearby]);
+
+  // NEARBY_THRESHOLD (SKILL_home_list_all_salons): while few salons exist, list them all —
+  // no location friction. Nearby's geoloc UX re-activates automatically past the threshold.
+  const useNearbyMode = !loadingSalons && salons.length > NEARBY_THRESHOLD;
 
   const barberInitials = latestVisit
     ? latestVisit.barber.name.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase()
@@ -185,10 +198,10 @@ export default function ClientHome() {
         </>
       )}
 
-      {/* ── NEARBY BARBERSHOP ── */}
+      {/* ── BARBERSHOPS / NEARBY BARBERSHOP ── */}
       <View style={styles.nearbyHeader}>
         <Text style={[styles.eyebrow, styles.eyebrowInline, { color: t.color.textMuted }]}>
-          NEARBY BARBERSHOP
+          {useNearbyMode ? 'NEARBY BARBERSHOP' : 'BARBERSHOPS'}
         </Text>
         <Pressable
           onPress={() => router.push('/(client)/choose-location')}
@@ -206,6 +219,8 @@ export default function ClientHome() {
         </Pressable>
       </View>
 
+      {useNearbyMode && (
+      <>
       {locStatus === 'granted' && (
         <View style={styles.radiusRow}>
           {RADIUS_OPTIONS_KM.map((km) => {
@@ -295,6 +310,68 @@ export default function ClientHome() {
                     <MapPinIcon color={t.color.textSecondary} />
                     <Text style={[styles.distanceText, { color: t.color.textSecondary }]}>
                       {salon.distanceKm != null ? `${salon.distanceKm} km` : 'Distance unavailable'}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => handleOpenSalon(salon.id)}
+                    style={[styles.bookNowBtn, { backgroundColor: t.color.textPrimary }]}
+                  >
+                    <Text style={[styles.bookNowText, { color: t.color.bgBase }]}>View</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        )
+      )}
+      </>
+      )}
+
+      {!useNearbyMode && (
+        loadingSalons ? (
+          <View style={styles.nearbyRow}>
+            <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
+            <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
+          </View>
+        ) : salonsError ? (
+          <Pressable
+            onPress={fetchSalons}
+            style={[styles.locationPrompt, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}
+          >
+            <Text style={[styles.locationPromptText, { color: t.color.textSecondary }]}>
+              Couldn't load salons — tap to retry.
+            </Text>
+          </Pressable>
+        ) : salons.length === 0 ? (
+          <View style={[styles.locationPrompt, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}>
+            <Text style={[styles.locationPromptText, { color: t.color.textSecondary }]}>
+              No salons available yet.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.nearbyRow}>
+            {salons.map((salon) => (
+              <View key={salon.id} style={[styles.nearbyCard, { backgroundColor: t.color.surfaceCard }]}>
+                <View style={styles.nearbyImgWrap}>
+                  <View style={[styles.nearbyImg, { backgroundColor: t.color.borderSubtle }]} />
+                  {salon.rating != null && (
+                    <View style={styles.ratingBadge}>
+                      <StarIcon size={11} color={t.color.gold} />
+                      <Text style={[styles.ratingBadgeText, { color: t.color.textPrimary }]}>
+                        {salon.rating.toFixed(1)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.nearbyContent}>
+                  {salon.isOpen === true && (
+                    <Text style={[styles.openNow, { color: t.color.gold }]}>OPEN NOW</Text>
+                  )}
+                  <Text style={[styles.nearbyName, { color: t.color.textPrimary }]}>{salon.name}</Text>
+                  <View style={styles.distanceRow}>
+                    <MapPinIcon color={t.color.textSecondary} />
+                    <Text style={[styles.distanceText, { color: t.color.textSecondary }]} numberOfLines={1}>
+                      {salon.address || 'Address unavailable'}
                     </Text>
                   </View>
                   <Pressable

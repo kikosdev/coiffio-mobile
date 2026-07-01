@@ -5,6 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
+import { useAuthStore } from '../../../src/stores/auth';
+import { ApiError } from '../../../src/api/client';
+import { createAppointment } from '../../../src/api/booking';
 import { formatMoney } from '../../../src/utils/formatMoney';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -51,10 +54,13 @@ export default function PaymentScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const draft = useBookingDraft();
+  const user = useAuthStore((s) => s.user);
 
   const [promoInput, setPromoInput] = useState('');
   const [promoError, setPromoError] = useState('');
   const [promoSuccess, setPromoSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [bookingError, setBookingError] = useState('');
 
   // Pre-fill from pendingPromoCode set by Offers screen
   useEffect(() => {
@@ -63,6 +69,19 @@ export default function PaymentScreen() {
       draft.setPendingPromo('');
     }
   }, []);
+
+  // Pre-fill contact details from the signed-in profile — still editable, still required.
+  useEffect(() => {
+    if (!user || draft.contact.firstName || draft.contact.email) return;
+    const parts = (user.name ?? '').trim().split(' ');
+    draft.setContact({
+      firstName: parts[0] ?? '',
+      lastName: parts.slice(1).join(' '),
+      email: user.email ?? '',
+      phone: user.phone ?? '',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const handleApplyPromo = () => {
     setPromoError('');
@@ -76,9 +95,37 @@ export default function PaymentScreen() {
     }
   };
 
-  const handleConfirmBooking = () => {
-    // V1 mock: auto-confirm cash booking
-    router.replace('/(client)/booking/confirmation');
+  const contact = draft.contact;
+  const contactValid =
+    contact.firstName.trim() !== '' &&
+    contact.lastName.trim() !== '' &&
+    contact.phone.trim() !== '' &&
+    /\S+@\S+\.\S+/.test(contact.email);
+  const canSubmit = contactValid && !!draft.barberId && !!draft.slotStartISO && draft.services.length > 0;
+
+  const handleConfirmBooking = async () => {
+    if (!canSubmit || !draft.barberId || !draft.slotStartISO) return;
+    setSubmitting(true);
+    setBookingError('');
+    try {
+      // Same POST /appointments the web storefront uses for both guest and signed-in
+      // bookings — the backend resolves/creates the Client by phone (merge-on-phone).
+      const appt = await createAppointment({
+        serviceIds: draft.services.map((s) => s.id),
+        stylistId: draft.barberId,
+        start: draft.slotStartISO,
+        clientName: `${contact.firstName} ${contact.lastName}`.trim(),
+        clientPhone: contact.phone,
+        clientEmail: contact.email,
+        source: 'online',
+      });
+      draft.setResult(appt);
+      router.replace('/(client)/booking/confirmation');
+    } catch (err) {
+      setBookingError(err instanceof ApiError ? err.message : 'Could not book this slot. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const subtotal = draft.servicesSubtotal();
@@ -103,6 +150,44 @@ export default function PaymentScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={[styles.title, { color: t.color.textPrimary }]}>Payment</Text>
+
+        {/* ── Your details ── */}
+        <View style={[styles.detailsCard, { backgroundColor: t.color.surfaceCard }]}>
+          <Text style={[styles.detailsTitle, { color: t.color.textPrimary }]}>Your details</Text>
+          <View style={styles.detailsRow}>
+            <TextInput
+              style={[styles.detailsInput, { flex: 1, backgroundColor: t.color.surfaceElevated, color: t.color.textPrimary }]}
+              value={contact.firstName}
+              onChangeText={(v) => draft.setContact({ firstName: v })}
+              placeholder="First name"
+              placeholderTextColor={t.color.textMuted}
+            />
+            <TextInput
+              style={[styles.detailsInput, { flex: 1, backgroundColor: t.color.surfaceElevated, color: t.color.textPrimary }]}
+              value={contact.lastName}
+              onChangeText={(v) => draft.setContact({ lastName: v })}
+              placeholder="Last name"
+              placeholderTextColor={t.color.textMuted}
+            />
+          </View>
+          <TextInput
+            style={[styles.detailsInput, { backgroundColor: t.color.surfaceElevated, color: t.color.textPrimary }]}
+            value={contact.phone}
+            onChangeText={(v) => draft.setContact({ phone: v })}
+            placeholder="Mobile number"
+            placeholderTextColor={t.color.textMuted}
+            keyboardType="phone-pad"
+          />
+          <TextInput
+            style={[styles.detailsInput, { backgroundColor: t.color.surfaceElevated, color: t.color.textPrimary }]}
+            value={contact.email}
+            onChangeText={(v) => draft.setContact({ email: v })}
+            placeholder="Email"
+            placeholderTextColor={t.color.textMuted}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+        </View>
 
         {/* ── Method toggle ── */}
         <View style={styles.methodRow}>
@@ -226,6 +311,9 @@ export default function PaymentScreen() {
           },
         ]}
       >
+        {bookingError !== '' && (
+          <Text style={[styles.promoFeedback, { color: t.color.danger }]}>{bookingError}</Text>
+        )}
         <View style={styles.totalRow}>
           <Text style={[styles.totalLabel, { color: t.color.textMuted }]}>Total</Text>
           <Text style={[styles.totalAmount, { color: t.color.textPrimary }]}>{formatMoney(total)}</Text>
@@ -233,11 +321,14 @@ export default function PaymentScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.ctaBtn,
-            { backgroundColor: t.color.textPrimary, opacity: pressed ? 0.88 : 1 },
+            { backgroundColor: canSubmit ? t.color.textPrimary : t.color.surfaceElevated, opacity: pressed && canSubmit ? 0.88 : 1 },
           ]}
+          disabled={!canSubmit || submitting}
           onPress={handleConfirmBooking}
         >
-          <Text style={[styles.ctaBtnText, { color: t.color.bgBase }]}>Confirm Booking</Text>
+          <Text style={[styles.ctaBtnText, { color: canSubmit ? t.color.bgBase : t.color.textMuted }]}>
+            {submitting ? 'Confirming…' : 'Confirm Booking'}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -250,6 +341,12 @@ const styles = StyleSheet.create({
   topWordmark:    { fontSize: 14, fontWeight: '800', letterSpacing: 2.52 },
   scrollContent:  { paddingHorizontal: 20, paddingTop: 4 },
   title:          { fontSize: 28, fontWeight: '700', marginTop: 14, marginBottom: 18 },
+
+  // Your details
+  detailsCard:    { borderRadius: 16, padding: 16, marginBottom: 16, gap: 10 },
+  detailsTitle:   { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  detailsRow:     { flexDirection: 'row', gap: 10 },
+  detailsInput:   { borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 14, fontWeight: '600' },
 
   // Method toggle
   methodRow:      { flexDirection: 'row', gap: 8, marginBottom: 16 },

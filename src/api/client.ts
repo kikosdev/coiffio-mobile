@@ -42,16 +42,22 @@ async function request<T>(
   return (json?.data ?? null) as T;
 }
 
-function withQuery(path: string, params?: Record<string, string | number | undefined>): string {
+type QueryValue = string | number | string[] | undefined;
+
+function withQuery(path: string, params?: Record<string, QueryValue>): string {
   if (!params) return path;
-  const entries = Object.entries(params).filter(([, v]) => v !== undefined) as [string, string | number][];
+  const entries = Object.entries(params).filter(([, v]) => v !== undefined) as [string, string | number | string[]][];
   if (entries.length === 0) return path;
-  const qs = entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join('&');
+  // Repeated key per array item (e.g. serviceIds=a&serviceIds=b) — matches Nest's default `qs` query parsing.
+  const qs = entries
+    .flatMap(([k, v]) => (Array.isArray(v) ? v.map((item) => [k, item] as const) : [[k, v] as const]))
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join('&');
   return `${path}?${qs}`;
 }
 
 export const api = {
-  get: <T>(path: string, params?: Record<string, string | number | undefined>) =>
+  get: <T>(path: string, params?: Record<string, QueryValue>) =>
     request<T>('GET', withQuery(path, params)),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),

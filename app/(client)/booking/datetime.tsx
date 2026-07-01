@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable, Dimensions, StyleSheet,
 } from 'react-native';
@@ -6,12 +6,12 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   format, addMonths, startOfMonth, getDaysInMonth,
-  getDay, startOfDay, isBefore, parse,
+  getDay, startOfDay, isBefore,
 } from 'date-fns';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
-import { getMockAvailability } from '../../../src/data/dummy';
+import { fetchTimeline, type SlotOption, type TimelineDay } from '../../../src/api/booking';
 
 const WIN_W = Dimensions.get('window').width;
 const TIME_PILL_W = Math.floor((WIN_W - 40 - 20) / 3); // 3 columns, paddingH=20, gap=10×2
@@ -55,7 +55,17 @@ export default function DateTimeScreen() {
 
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<SlotOption | null>(null);
+  const [timeline, setTimeline] = useState<TimelineDay[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const serviceIds = useMemo(() => draft.services.map((s) => s.id), [draft.services]);
+
+  useEffect(() => {
+    if (!draft.barberId || serviceIds.length === 0) {
+      router.replace('/(client)/booking/services');
+    }
+  }, []);
 
   const today = startOfDay(new Date());
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -64,6 +74,25 @@ export default function DateTimeScreen() {
   const month = displayMonth.getMonth() + 1;
   const monthLabel = format(displayMonth, 'MMMM yyyy');
   const daysCount = getDaysInMonth(displayMonth);
+  const monthStart = format(displayMonth, 'yyyy-MM-dd');
+
+  useEffect(() => {
+    if (!draft.barberId || serviceIds.length === 0) return;
+    setLoading(true);
+    fetchTimeline(serviceIds, monthStart, draft.barberId, daysCount)
+      .then(setTimeline)
+      .catch(() => setTimeline([]))
+      .finally(() => setLoading(false));
+  }, [monthStart, daysCount, draft.barberId, serviceIds.join(',')]);
+
+  const timelineByDate = useMemo(() => new Map(timeline.map((d) => [d.date, d])), [timeline]);
+
+  const slotsFor = (dateStr: string): SlotOption[] => {
+    const slots = timelineByDate.get(dateStr)?.stylists.find((s) => s.stylistId === draft.barberId)?.slots ?? [];
+    // slot.start is an absolute ISO instant, so comparing it to "now" is correct regardless of
+    // timezone — no wall-clock math needed to hide today's already-passed times.
+    return slots.filter((s) => new Date(s.start).getTime() > Date.now());
+  };
 
   // Calendar grid cells (null = blank spacer)
   const cells = useMemo(() => {
@@ -81,40 +110,35 @@ export default function DateTimeScreen() {
   const rows: (number | null)[][] = [];
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
 
-  const availability = useMemo(
-    () => getMockAvailability(draft.barberId ?? 'b1', year, month),
-    [draft.barberId, year, month]
-  );
-
-  const timeSlots = selectedDate ? (availability[selectedDate] ?? []) : [];
+  const timeSlots = selectedDate ? slotsFor(selectedDate) : [];
 
   const handleMonthPrev = () => {
     if (monthOffset === 0) return;
     setMonthOffset((o) => o - 1);
     setSelectedDate(null);
-    setSelectedTime(null);
+    setSelectedSlot(null);
   };
   const handleMonthNext = () => {
     setMonthOffset((o) => o + 1);
     setSelectedDate(null);
-    setSelectedTime(null);
+    setSelectedSlot(null);
   };
   const handleDayPress = (day: number) => {
     const d = new Date(year, month - 1, day);
     const str = format(d, 'yyyy-MM-dd');
     setSelectedDate(str);
-    setSelectedTime(null);
+    setSelectedSlot(null);
   };
 
-  const canConfirm = !!(selectedDate && selectedTime);
+  const canConfirm = !!(selectedDate && selectedSlot);
 
-  const ctaLabel = canConfirm && selectedDate && selectedTime
-    ? `Confirm — ${format(parse(selectedDate, 'yyyy-MM-dd', new Date()), 'EEE d')}, ${selectedTime}`
+  const ctaLabel = canConfirm && selectedDate && selectedSlot
+    ? `Confirm — ${format(new Date(year, month - 1, Number(selectedDate.slice(8))), 'EEE d')}, ${selectedSlot.time}`
     : 'Select date & time';
 
   const handleConfirm = () => {
-    if (!selectedDate || !selectedTime) return;
-    draft.setSlot(selectedDate, selectedTime);
+    if (!selectedDate || !selectedSlot) return;
+    draft.setSlot(selectedDate, selectedSlot.time, selectedSlot.start);
     router.push('/(client)/booking/payment');
   };
 
@@ -168,8 +192,12 @@ export default function DateTimeScreen() {
                 const isActive = selectedDate === dateStr;
                 const isToday = dateStr === todayStr;
                 const isPast = isBefore(d, today);
-                const isUnavailable = !availability[dateStr];
-                const disabled = isPast || isUnavailable;
+                const dayInfo = timelineByDate.get(dateStr);
+                // Only a real day-off closes the cell — a day with zero remaining slots (fully
+                // booked) stays tappable so "No available slots" can show, same as a day-off's
+                // absence from the timeline (missing data defaults to open, not closed).
+                const isDayOff = dayInfo?.isClosed ?? false;
+                const disabled = isPast || loading || isDayOff;
                 return (
                   <Pressable
                     key={di}
@@ -201,25 +229,25 @@ export default function DateTimeScreen() {
         {/* ── Available time ── */}
         <Text style={[styles.eyebrow, { color: t.color.textMuted }]}>AVAILABLE TIME</Text>
 
-        {timeSlots.length === 0 ? (
+        {loading ? (
+          <Text style={[styles.noSlots, { color: t.color.textMuted }]}>Searching availability…</Text>
+        ) : timeSlots.length === 0 ? (
           <Text style={[styles.noSlots, { color: t.color.textMuted }]}>
             {selectedDate ? 'No available slots for this day' : 'Select a date above'}
           </Text>
         ) : (
           <View style={styles.timeGrid}>
             {timeSlots.map((slot) => {
-              const isActive = selectedTime === slot.time;
+              const isActive = selectedSlot?.start === slot.start;
               return (
                 <Pressable
-                  key={slot.time}
-                  disabled={!slot.available}
-                  onPress={() => setSelectedTime(slot.time)}
+                  key={slot.start}
+                  onPress={() => setSelectedSlot(slot)}
                   style={[
                     styles.timePill,
                     {
                       width: TIME_PILL_W,
                       backgroundColor: isActive ? t.color.textPrimary : t.color.surfaceElevated,
-                      opacity: slot.available ? 1 : 0.35,
                     },
                   ]}
                 >

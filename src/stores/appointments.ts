@@ -9,7 +9,7 @@ export type Appointment = {
   ref: string;
   barber: { id: string; name: string; isPro: boolean };
   salon: { name: string; distanceKm?: number };
-  services: { name: string; price: number }[];
+  services: { id: string; name: string; price: number }[];
   date: string;       // 'yyyy-MM-dd' (Africa/Tunis)
   startTime: string;  // 'HH:mm' (Africa/Tunis)
   endTime: string;    // 'HH:mm' (Africa/Tunis)
@@ -28,7 +28,7 @@ interface RawAppointment {
   salonId: string;
   salonName: string | null;
   barber: { id: string | null; name: string; title: string | null; isPro: boolean; initials: string };
-  services: { name: string; price: number }[];
+  services: { id: string; name: string; price: number }[];
   start: string;
   end: string;
   price: number;
