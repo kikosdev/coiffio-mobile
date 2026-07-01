@@ -251,19 +251,6 @@ export const dummyPacks: Pack[] = [
   },
 ];
 
-export const dummyLastVisit = {
-  barberName: 'Richard Anderson',
-  initials: 'RA',
-  isPro: true,
-  rating: 4.8,
-  reviewCount: 114,
-};
-
-export const dummyNearbySalons = [
-  { id: 'n1', name: 'The Barber Shop', rating: 4.9, isOpen: true, distanceKm: 0.7 },
-  { id: 'n2', name: 'Good Place',      rating: 4.8, isOpen: true, distanceKm: 2.3 },
-];
-
 export const dummyOffers = [
   { id: 'o1', title: 'First Visit', discount: '20% off', description: 'Any service on your first visit.', badge: 'NEW CLIENT', expires: '2026-07-31' },
   { id: 'o2', title: 'Cut + Beard Bundle', discount: '$10 off', description: 'Book a cut and beard trim together.', badge: 'BUNDLE', expires: '2026-07-15' },

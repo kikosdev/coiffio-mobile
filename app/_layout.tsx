@@ -14,6 +14,7 @@ import {
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider } from '../src/theme/ThemeProvider';
+import { useAuthStore } from '../src/stores/auth';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,6 +27,11 @@ export default function RootLayout() {
     Inter_800ExtraBold,
     Inter_900Black,
   });
+  const hydrate = useAuthStore((s) => s.hydrate);
+
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
 
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync();

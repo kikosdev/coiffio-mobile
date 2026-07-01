@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { format } from 'date-fns';
+import { api } from '../api/client';
+import { salonDateKey, formatSalonTime } from '../utils/salonTime';
 
-export type AppointmentStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled';
+export type AppointmentStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled' | 'noshow';
 
 export type Appointment = {
   id: string;
@@ -9,110 +10,120 @@ export type Appointment = {
   barber: { id: string; name: string; isPro: boolean };
   salon: { name: string; distanceKm?: number };
   services: { name: string; price: number }[];
-  date: string;       // 'yyyy-MM-dd'
-  startTime: string;  // 'HH:mm'
-  endTime: string;    // 'HH:mm'
+  date: string;       // 'yyyy-MM-dd' (Africa/Tunis)
+  startTime: string;  // 'HH:mm' (Africa/Tunis)
+  endTime: string;    // 'HH:mm' (Africa/Tunis)
   durationMin: number;
   status: AppointmentStatus;
   paymentMethod: 'cash';
   amountDue: number;
   checkInCode: string;
-  rating?: number;
+  rating?: number; // jamais renseigné aujourd'hui — aucune collection reviews en base
 };
 
-const MOCK: Appointment[] = [
-  {
-    id: 'ap1', ref: 'BB-20847',
-    barber: { id: 'b1', name: 'Richard Anderson', isPro: true },
-    salon: { name: 'Rogers Barbershop', distanceKm: 2.3 },
-    services: [{ name: 'Classic Cut', price: 35 }, { name: 'Beard Trim', price: 20 }],
-    date: '2026-07-02', startTime: '12:00', endTime: '12:45', durationMin: 45,
-    status: 'confirmed', paymentMethod: 'cash', amountDue: 55, checkInCode: 'BB-20847',
-  },
-  {
-    id: 'ap2', ref: 'BB-20932',
-    barber: { id: 'b2', name: 'Marcus Lee', isPro: false },
-    salon: { name: 'Rogers Barbershop', distanceKm: 2.3 },
-    services: [{ name: 'Skin Fade', price: 45 }],
-    date: '2026-07-08', startTime: '16:30', endTime: '17:15', durationMin: 45,
-    status: 'pending', paymentMethod: 'cash', amountDue: 45, checkInCode: 'BB-20932',
-  },
-  {
-    id: 'ap3', ref: 'BB-19284',
-    barber: { id: 'b1', name: 'Richard Anderson', isPro: true },
-    salon: { name: 'Rogers Barbershop', distanceKm: 2.3 },
-    services: [{ name: 'Cut & Beard', price: 45 }],
-    date: '2026-05-28', startTime: '11:00', endTime: '11:50', durationMin: 50,
-    status: 'completed', paymentMethod: 'cash', amountDue: 45, checkInCode: 'BB-19284',
-    rating: 5,
-  },
-  {
-    id: 'ap4', ref: 'BB-18749',
-    barber: { id: 'b3', name: 'Dawit Kebede', isPro: true },
-    salon: { name: 'Rogers Barbershop', distanceKm: 2.3 },
-    services: [{ name: 'Skin Fade', price: 32 }],
-    date: '2026-04-09', startTime: '14:00', endTime: '14:45', durationMin: 45,
-    status: 'completed', paymentMethod: 'cash', amountDue: 32, checkInCode: 'BB-18749',
-    rating: 4,
-  },
-  {
-    id: 'ap5', ref: 'BB-17563',
-    barber: { id: 'b2', name: 'Marcus Lee', isPro: false },
-    salon: { name: 'Rogers Barbershop', distanceKm: 2.3 },
-    services: [{ name: 'Classic Cut', price: 35 }],
-    date: '2026-03-21', startTime: '10:00', endTime: '10:30', durationMin: 30,
-    status: 'completed', paymentMethod: 'cash', amountDue: 35, checkInCode: 'BB-17563',
-  },
-];
+type RawStatus = 'booked' | 'confirmed' | 'completed' | 'cancelled' | 'noshow';
+
+interface RawAppointment {
+  id: string;
+  salonId: string;
+  salonName: string | null;
+  barber: { id: string | null; name: string; title: string | null; isPro: boolean; initials: string };
+  services: { name: string; price: number }[];
+  start: string;
+  end: string;
+  price: number;
+  status: RawStatus;
+}
+
+// AP-1 : le statut stocké n'est jamais "pending" — c'est un label dérivé (position dans la
+// liste triée). `context` gère juste le cas rare d'un RDV passé jamais clôturé par le staff.
+function mapStatus(raw: RawStatus, context: 'upcoming' | 'history'): AppointmentStatus {
+  if (raw === 'completed') return 'completed';
+  if (raw === 'cancelled') return 'cancelled';
+  if (raw === 'noshow') return 'noshow';
+  return context === 'history' ? 'completed' : 'pending';
+}
+
+function transform(raw: RawAppointment, context: 'upcoming' | 'history'): Appointment {
+  const durationMin = Math.round((new Date(raw.end).getTime() - new Date(raw.start).getTime()) / 60000);
+  return {
+    id: raw.id,
+    ref: raw.id.slice(-8).toUpperCase(),
+    barber: { id: raw.barber.id ?? '', name: raw.barber.name, isPro: raw.barber.isPro },
+    salon: { name: raw.salonName ?? 'Salon' },
+    services: raw.services,
+    date: salonDateKey(raw.start),
+    startTime: formatSalonTime(raw.start),
+    endTime: formatSalonTime(raw.end),
+    durationMin,
+    status: mapStatus(raw.status, context),
+    paymentMethod: 'cash',
+    amountDue: raw.price,
+    checkInCode: raw.id,
+  };
+}
 
 interface AppointmentsState {
-  items: Appointment[];
+  upcomingItems: Appointment[];
+  historyItems: Appointment[];
+  loadingUpcoming: boolean;
+  loadingHistory: boolean;
+
+  fetchUpcoming: () => Promise<void>;
+  fetchHistory: () => Promise<void>;
+
   upcoming: () => Appointment[];
   history: () => Appointment[];
   byId: (id: string) => Appointment | undefined;
   totalSpentThisYear: () => number;
   completedCount: () => number;
-  cancelAppointment: (id: string) => void;
-  reschedule: (id: string, date: string, startTime: string, endTime: string) => void;
+  cancelAppointment: (id: string) => Promise<void>;
 }
 
 export const useAppointments = create<AppointmentsState>()((set, get) => ({
-  items: MOCK,
+  upcomingItems: [],
+  historyItems: [],
+  loadingUpcoming: false,
+  loadingHistory: false,
 
-  upcoming: () => {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    return get()
-      .items.filter(
-        (a) => (a.status === 'confirmed' || a.status === 'pending') && a.date >= today
-      )
-      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+  fetchUpcoming: async () => {
+    set({ loadingUpcoming: true });
+    try {
+      const raw = await api.get<RawAppointment[]>('/appointments/mine', { scope: 'upcoming' });
+      set({ upcomingItems: raw.map((a) => transform(a, 'upcoming')), loadingUpcoming: false });
+    } catch {
+      set({ upcomingItems: [], loadingUpcoming: false });
+    }
   },
 
-  history: () =>
-    get()
-      .items.filter((a) => a.status === 'completed' || a.status === 'cancelled')
-      .sort((a, b) => b.date.localeCompare(a.date)),
+  fetchHistory: async () => {
+    set({ loadingHistory: true });
+    try {
+      const raw = await api.get<RawAppointment[]>('/appointments/mine', { scope: 'history' });
+      set({ historyItems: raw.map((a) => transform(a, 'history')), loadingHistory: false });
+    } catch {
+      set({ historyItems: [], loadingHistory: false });
+    }
+  },
 
-  byId: (id) => get().items.find((a) => a.id === id),
+  // Soonest upcoming = "confirmed" (featured) ; le reste = "pending" (AP-1 — pur affichage).
+  upcoming: () => get().upcomingItems.map((a, i) => ({ ...a, status: i === 0 ? 'confirmed' : 'pending' })),
+
+  history: () => get().historyItems,
+
+  byId: (id) => get().upcomingItems.find((a) => a.id === id) ?? get().historyItems.find((a) => a.id === id),
 
   totalSpentThisYear: () => {
     const year = new Date().getFullYear().toString();
     return get()
-      .items.filter((a) => a.status === 'completed' && a.date.startsWith(year))
+      .historyItems.filter((a) => a.status === 'completed' && a.date.startsWith(year))
       .reduce((sum, a) => sum + a.amountDue, 0);
   },
 
-  completedCount: () => get().items.filter((a) => a.status === 'completed').length,
+  completedCount: () => get().historyItems.filter((a) => a.status === 'completed').length,
 
-  cancelAppointment: (id) =>
-    set((s) => ({
-      items: s.items.map((a) => (a.id === id ? { ...a, status: 'cancelled' as const } : a)),
-    })),
-
-  reschedule: (id, date, startTime, endTime) =>
-    set((s) => ({
-      items: s.items.map((a) =>
-        a.id === id ? { ...a, date, startTime, endTime, status: 'confirmed' as const } : a
-      ),
-    })),
+  cancelAppointment: async (id) => {
+    await api.patch(`/appointments/${id}/cancel`);
+    set((s) => ({ upcomingItems: s.upcomingItems.filter((a) => a.id !== id) }));
+  },
 }));

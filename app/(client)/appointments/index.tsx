@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useAppointments, type Appointment, type AppointmentStatus } from '../../../src/stores/appointments';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
+import { useAuthStore } from '../../../src/stores/auth';
 import { formatMoney } from '../../../src/utils/formatMoney';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ function StatusBadge({ status }: { status: AppointmentStatus }) {
     pending:   { bg: t.color.surfaceElevated, color: t.color.goldWarm, label: 'PENDING' },
     completed: { bg: t.color.surfaceElevated, color: t.color.textMuted, label: 'DONE' },
     cancelled: { bg: t.color.dangerSoft, color: t.color.danger, label: 'CANCELLED' },
+    noshow:    { bg: t.color.dangerSoft, color: t.color.danger, label: 'NO SHOW' },
   };
   const { bg, color, label } = MAP[status];
   return (
@@ -85,7 +87,17 @@ function NextVisitCard({ appt }: { appt: Appointment }) {
       'This action cannot be undone.',
       [
         { text: 'Keep', style: 'cancel' },
-        { text: 'Cancel booking', style: 'destructive', onPress: () => store.cancelAppointment(appt.id) },
+        {
+          text: 'Cancel booking',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await store.cancelAppointment(appt.id);
+            } catch {
+              Alert.alert('Could not cancel', 'Please try again.');
+            }
+          },
+        },
       ]
     );
   };
@@ -244,7 +256,14 @@ export default function AppointmentsScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const store = useAppointments();
+  const user = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<'upcoming' | 'history'>('upcoming');
+
+  useEffect(() => {
+    if (!user) return;
+    store.fetchUpcoming();
+    store.fetchHistory();
+  }, [user]);
 
   const upcomingList = store.upcoming();
   const historyList = store.history();
@@ -253,6 +272,23 @@ export default function AppointmentsScreen() {
 
   const totalSpent = store.totalSpentThisYear();
   const completed = store.completedCount();
+
+  if (!user) {
+    return (
+      <View style={[styles.root, styles.guestRoot, { backgroundColor: t.color.bgBase }]}>
+        <Text style={[styles.title, { color: t.color.textPrimary }]}>Appointments</Text>
+        <Text style={[styles.empty, { color: t.color.textMuted }]}>
+          Sign in to see your bookings.
+        </Text>
+        <Pressable
+          style={[styles.guestLoginBtn, { backgroundColor: t.color.gold }]}
+          onPress={() => router.push('/(auth)/login?role=client' as never)}
+        >
+          <Text style={[styles.guestLoginText, { color: t.color.onGold }]}>Sign in</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: t.color.bgBase }]}>
@@ -281,7 +317,9 @@ export default function AppointmentsScreen() {
 
         {tab === 'upcoming' ? (
           <>
-            {upcomingList.length === 0 ? (
+            {store.loadingUpcoming ? (
+              <Text style={[styles.empty, { color: t.color.textMuted }]}>Loading…</Text>
+            ) : upcomingList.length === 0 ? (
               <Text style={[styles.empty, { color: t.color.textMuted }]}>No upcoming appointments</Text>
             ) : (
               <>
@@ -304,7 +342,9 @@ export default function AppointmentsScreen() {
               </View>
             </View>
 
-            {historyList.length === 0 ? (
+            {store.loadingHistory ? (
+              <Text style={[styles.empty, { color: t.color.textMuted }]}>Loading…</Text>
+            ) : historyList.length === 0 ? (
               <Text style={[styles.empty, { color: t.color.textMuted }]}>No past appointments</Text>
             ) : (
               historyList.map((a) => <HistoryRow key={a.id} appt={a} />)
@@ -321,6 +361,10 @@ const styles = StyleSheet.create({
   scroll:  { paddingHorizontal: 22 },
   title:   { fontSize: 27, fontWeight: '800', marginBottom: 14 },
   empty:   { fontSize: 14, fontWeight: '500', marginTop: 32, textAlign: 'center' },
+
+  guestRoot:     { paddingHorizontal: 22, paddingTop: 60, alignItems: 'center' },
+  guestLoginBtn: { marginTop: 20, borderRadius: 100, paddingVertical: 13, paddingHorizontal: 28 },
+  guestLoginText: { fontSize: 14, fontWeight: '700' },
 
   // Toggle
   toggleRow:  { flexDirection: 'row', gap: 8, marginBottom: 18 },

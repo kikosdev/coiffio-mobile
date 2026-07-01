@@ -52,6 +52,7 @@ function StatusBadge({ status }: { status: AppointmentStatus }) {
     pending:   { bg: t.color.surfaceElevated, color: t.color.goldWarm, label: 'PENDING' },
     completed: { bg: t.color.surfaceElevated, color: t.color.textMuted, label: 'DONE' },
     cancelled: { bg: t.color.dangerSoft, color: t.color.danger, label: 'CANCELLED' },
+    noshow:    { bg: t.color.dangerSoft, color: t.color.danger, label: 'NO SHOW' },
   };
   const { bg, color, label } = MAP[status];
   return (

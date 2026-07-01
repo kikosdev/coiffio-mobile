@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useRoleStore } from '../../src/state/role';
+import { useAuthStore } from '../../src/stores/auth';
 import { resolveRole, ROLE_AUTH } from '../../src/features/auth/roleConfig';
 import { Role } from '../../src/theme/tokens';
 
@@ -87,6 +88,14 @@ function IconEyeOff({ color }: { color: string }) {
   );
 }
 
+function IconArrowRight({ color }: { color: string }) {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M5 12h14M13 6l6 6-6 6" />
+    </Svg>
+  );
+}
+
 function IconInfo({ color }: { color: string }) {
   return (
     <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -127,25 +136,47 @@ export default function LoginScreen() {
   const router = useRouter();
   const t = useTheme();
   const setRole = useRoleStore((s) => s.setRole);
+  const login = useAuthStore((s) => s.login);
   const insets = useSafeAreaInsets();
   const { role: rawRole } = useLocalSearchParams<{ role?: string }>();
   const role = resolveRole(rawRole);
   const cfg = ROLE_AUTH[role];
   const RoleIcon = ROLE_ICON[role];
 
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
+  const [identifierFocused, setIdentifierFocused] = useState(false);
   const [pwFocused, setPwFocused] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  function handleSignIn() {
-    setRole(role);
-    router.replace(cfg.home as never);
+  async function handleSignIn() {
+    if (role !== 'client') {
+      // Staff/owner auth isn't wired to the backend yet — keep prototype flow.
+      setRole(role);
+      router.replace(cfg.home as never);
+      return;
+    }
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      await login(identifier.trim(), password);
+      setRole('client');
+      router.replace(cfg.home as never);
+    } catch {
+      setFormError('Invalid email/phone or password.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function handleCreateAccount() {
     router.push({ pathname: '/(auth)/create-account', params: { role: 'client' } } as never);
+  }
+
+  function handleGuest() {
+    router.replace('/(client)/home' as never);
   }
 
   return (
@@ -194,25 +225,25 @@ export default function LoginScreen() {
           </Text>
         </Pressable>
 
-        {/* Email */}
+        {/* Identifier (email or phone) */}
         <Text style={[styles.fieldLabel, { color: t.color.textMuted }]}>
           {cfg.emailLabel}
         </Text>
         <View style={[
           styles.field,
-          { backgroundColor: t.color.surfaceCard, borderColor: emailFocused ? t.color.gold : t.color.borderSubtle },
+          { backgroundColor: t.color.surfaceCard, borderColor: identifierFocused ? t.color.gold : t.color.borderSubtle },
         ]}>
           <IconMail color={t.color.textMuted} />
           <TextInput
-            value={email}
-            onChangeText={setEmail}
+            value={identifier}
+            onChangeText={setIdentifier}
             placeholder={cfg.emailPlaceholder}
             placeholderTextColor={t.color.textMuted}
-            keyboardType="email-address"
+            keyboardType="default"
             autoCapitalize="none"
             autoCorrect={false}
-            onFocus={() => setEmailFocused(true)}
-            onBlur={() => setEmailFocused(false)}
+            onFocus={() => setIdentifierFocused(true)}
+            onBlur={() => setIdentifierFocused(false)}
             style={[styles.input, { color: t.color.textPrimary }]}
           />
         </View>
@@ -249,15 +280,23 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
+        {/* Error */}
+        {formError && (
+          <Text style={[styles.errorText, { color: t.color.danger }]}>{formError}</Text>
+        )}
+
         {/* Sign in CTA */}
         <Pressable
           onPress={handleSignIn}
+          disabled={submitting}
           style={({ pressed }) => [
             styles.primary,
-            { backgroundColor: t.color.gold, opacity: pressed ? 0.9 : 1 },
+            { backgroundColor: t.color.gold, opacity: pressed || submitting ? 0.7 : 1 },
           ]}
         >
-          <Text style={[styles.primaryText, { color: t.color.onGold }]}>Sign in</Text>
+          <Text style={[styles.primaryText, { color: t.color.onGold }]}>
+            {submitting ? 'Signing in…' : 'Sign in'}
+          </Text>
         </Pressable>
 
         {/* Divider */}
@@ -292,12 +331,25 @@ export default function LoginScreen() {
         {/* Footer */}
         <View style={styles.footer}>
           {cfg.canSignup ? (
-            <Pressable onPress={handleCreateAccount} hitSlop={6}>
-              <Text style={[styles.footerText, { color: t.color.textSecondary }]}>
-                New here?{' '}
-                <Text style={{ color: t.color.gold, fontWeight: '700' }}>Create an account</Text>
-              </Text>
-            </Pressable>
+            <>
+              <Pressable onPress={handleCreateAccount} hitSlop={6}>
+                <Text style={[styles.footerText, { color: t.color.textSecondary }]}>
+                  New here?{' '}
+                  <Text style={{ color: t.color.gold, fontWeight: '700' }}>Create an account</Text>
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleGuest}
+                style={({ pressed }) => [
+                  styles.guestBtn,
+                  { borderColor: t.color.borderSubtle, opacity: pressed ? 0.7 : 1 },
+                ]}
+                hitSlop={4}
+              >
+                <Text style={[styles.guestText, { color: t.color.textMuted }]}>Continue as guest</Text>
+                <IconArrowRight color={t.color.textMuted} />
+              </Pressable>
+            </>
           ) : (
             <View style={[styles.staffNote, { backgroundColor: t.color.surfaceInput, borderColor: t.color.borderSubtle }]}>
               <IconInfo color={t.color.textMuted} />
@@ -348,6 +400,8 @@ const styles = StyleSheet.create({
   },
   forgot: { fontSize: 12, fontWeight: '700' },
 
+  errorText: { fontSize: 12.5, fontWeight: '600', marginTop: 14 },
+
   primary: {
     borderRadius: 15, alignItems: 'center', paddingVertical: 17, marginTop: 26,
   },
@@ -364,8 +418,15 @@ const styles = StyleSheet.create({
   },
   socialText: { fontSize: 13.5, fontWeight: '700' },
 
-  footer: { alignItems: 'center', marginTop: 26 },
+  footer: { alignItems: 'center', marginTop: 26, gap: 16 },
   footerText: { fontSize: 13.5, fontWeight: '500' },
+
+  guestBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    borderWidth: 1, borderRadius: 13, paddingVertical: 13, paddingHorizontal: 22,
+    width: '100%',
+  },
+  guestText: { fontSize: 13.5, fontWeight: '600' },
 
   staffNote: {
     flexDirection: 'row', alignItems: 'center', gap: 9,

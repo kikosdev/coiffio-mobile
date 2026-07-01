@@ -62,15 +62,19 @@ interface TProps {
   color?: string;
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
+  adjustsFontSizeToFit?: boolean;
+  minimumFontScale?: number;
 }
 
-export function T({ children, variant = 'body', color, style, numberOfLines }: TProps) {
+export function T({ children, variant = 'body', color, style, numberOfLines, adjustsFontSizeToFit, minimumFontScale }: TProps) {
   const t = useTheme();
   const styles = variantStyle(variant, t);
   return (
     <Text
       style={[styles, color ? { color } : undefined, style]}
       numberOfLines={numberOfLines}
+      adjustsFontSizeToFit={adjustsFontSizeToFit}
+      minimumFontScale={minimumFontScale}
     >
       {children}
     </Text>

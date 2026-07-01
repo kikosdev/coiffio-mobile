@@ -3,11 +3,12 @@ import {
   View, Text, TextInput, Pressable, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import Svg, { Circle, Path, Rect, Polyline, Check } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useRoleStore } from '../../src/state/role';
+import { useAuthStore } from '../../src/stores/auth';
 
 // ── SVG icons ─────────────────────────────────────────────────────────────────
 
@@ -97,32 +98,48 @@ export default function CreateAccountScreen() {
   const router = useRouter();
   const t = useTheme();
   const setRole = useRoleStore((s) => s.setRole);
+  const registerClient = useAuthStore((s) => s.registerClient);
   const insets = useSafeAreaInsets();
 
-  const [fullName, setFullName]   = useState('');
-  const [email, setEmail]         = useState('');
-  const [phone, setPhone]         = useState('');
-  const [password, setPassword]   = useState('');
-  const [showPw, setShowPw]       = useState(false);
-  const [agreed, setAgreed]       = useState(false);
+  const [fullName, setFullName]         = useState('');
+  const [identifier, setIdentifier]     = useState('');
+  const [phone, setPhone]               = useState('');
+  const [password, setPassword]         = useState('');
+  const [showPw, setShowPw]             = useState(false);
+  const [agreed, setAgreed]             = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+  const [formError, setFormError]       = useState<string | null>(null);
 
-  const [nameFocused,  setNameFocused]  = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [phoneFocused, setPhoneFocused] = useState(false);
-  const [pwFocused,    setPwFocused]    = useState(false);
+  const [nameFocused,       setNameFocused]       = useState(false);
+  const [identifierFocused, setIdentifierFocused] = useState(false);
+  const [phoneFocused,      setPhoneFocused]      = useState(false);
+  const [pwFocused,         setPwFocused]         = useState(false);
 
   const strength = pwStrength(password);
   const canSubmit =
     fullName.trim().length >= 2 &&
-    email.includes('@') &&
+    identifier.trim().length >= 3 &&
     phone.trim().length >= 6 &&
     password.length >= 8 &&
     agreed;
 
-  function handleCreate() {
-    // TODO: POST /auth/register { fullName, email, phone: '+1' + phone, password, role: 'client' }
-    setRole('client');
-    router.replace('/(client)/home' as never);
+  async function handleCreate() {
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      await registerClient({
+        name: fullName.trim(),
+        identifier: identifier.trim(),
+        phone: phone.trim(),
+        password,
+      });
+      setRole('client');
+      router.replace('/(client)/home' as never);
+    } catch {
+      setFormError('Could not create account. The identifier may already be in use.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const strengthColor = strength === 4
@@ -191,20 +208,20 @@ export default function CreateAccountScreen() {
           />
         </View>
 
-        {/* ── Email ── */}
-        <Text style={[styles.label, { color: t.color.textMuted }]}>EMAIL</Text>
-        <View style={[styles.field, { backgroundColor: t.color.surfaceCard, borderColor: emailFocused ? t.color.gold : t.color.borderSubtle }]}>
+        {/* ── Email or phone (login identifier) ── */}
+        <Text style={[styles.label, { color: t.color.textMuted }]}>EMAIL OR PHONE</Text>
+        <View style={[styles.field, { backgroundColor: t.color.surfaceCard, borderColor: identifierFocused ? t.color.gold : t.color.borderSubtle }]}>
           <IconMail color={t.color.textMuted} />
           <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@email.com"
+            value={identifier}
+            onChangeText={setIdentifier}
+            placeholder="you@email.com or +216 XX XXX XXX"
             placeholderTextColor={t.color.textMuted}
-            keyboardType="email-address"
+            keyboardType="default"
             autoCapitalize="none"
             autoCorrect={false}
-            onFocus={() => setEmailFocused(true)}
-            onBlur={() => setEmailFocused(false)}
+            onFocus={() => setIdentifierFocused(true)}
+            onBlur={() => setIdentifierFocused(false)}
             style={[styles.input, { color: t.color.textPrimary }]}
           />
         </View>
@@ -284,20 +301,25 @@ export default function CreateAccountScreen() {
           </Text>
         </Pressable>
 
+        {/* Error */}
+        {formError && (
+          <Text style={[styles.errorText, { color: t.color.danger }]}>{formError}</Text>
+        )}
+
         {/* ── CTA ── */}
         <Pressable
           onPress={handleCreate}
-          disabled={!canSubmit}
+          disabled={!canSubmit || submitting}
           style={({ pressed }) => [
             styles.primary,
             {
               backgroundColor: canSubmit ? t.color.gold : t.color.surfaceCard,
-              opacity: pressed ? 0.88 : 1,
+              opacity: pressed || submitting ? 0.88 : 1,
             },
           ]}
         >
           <Text style={[styles.primaryText, { color: canSubmit ? t.color.onGold : t.color.textMuted }]}>
-            Create account
+            {submitting ? 'Creating account…' : 'Create account'}
           </Text>
         </Pressable>
 
@@ -359,6 +381,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
   },
   checkText: { flex: 1, fontSize: 13, fontWeight: '500', lineHeight: 19 },
+
+  errorText: { fontSize: 12.5, fontWeight: '600', marginTop: 16 },
 
   primary: { borderRadius: 14, alignItems: 'center', paddingVertical: 17, marginTop: 22 },
   primaryText: { fontSize: 16, fontWeight: '800' },

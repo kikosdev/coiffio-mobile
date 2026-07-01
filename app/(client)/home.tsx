@@ -1,10 +1,14 @@
+import { useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useTheme } from '../../src/theme/ThemeProvider';
-import { dummyLastVisit, dummyNearbySalons } from '../../src/data/dummy';
+import { useAuthStore } from '../../src/stores/auth';
+import { useUserLocation } from '../../src/hooks/useUserLocation';
+import { useSettingsStore, RADIUS_OPTIONS_KM } from '../../src/stores/settings';
+import { useHomeStore } from '../../src/stores/home';
 
 // ── Icon helpers ─────────────────────────────────────────────────────────────
 
@@ -67,6 +71,38 @@ export default function ClientHome() {
   const insets = useSafeAreaInsets();
   const dateLabel = format(new Date(), 'EEEE, MMMM d');
 
+  const user = useAuthStore((s) => s.user);
+  const firstName = user?.name?.split(' ')[0] ?? 'Guest';
+
+  const { status: locStatus, coords, request: requestLocation } = useUserLocation();
+  const searchRadiusKm = useSettingsStore((s) => s.searchRadiusKm);
+  const setSearchRadiusKm = useSettingsStore((s) => s.setSearchRadiusKm);
+
+  const { latestVisit, loadingLatest, nearby, loadingNearby, fetchLatestVisit, fetchNearby } = useHomeStore();
+
+  useEffect(() => {
+    fetchLatestVisit();
+  }, [user, fetchLatestVisit]);
+
+  useEffect(() => {
+    if (locStatus === 'granted' && coords) {
+      fetchNearby(coords.lat, coords.lng, searchRadiusKm);
+    }
+  }, [locStatus, coords, searchRadiusKm, fetchNearby]);
+
+  const barberInitials = latestVisit
+    ? latestVisit.barber.name.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase()
+    : '';
+
+  function handleBookBarber() {
+    if (!latestVisit?.barber.id) return;
+    router.push({ pathname: '/(client)/barber/[id]', params: { id: latestVisit.barber.id } });
+  }
+
+  function handleOpenSalon(salonId: string) {
+    router.push({ pathname: '/(client)/salon/[id]', params: { id: salonId } });
+  }
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: t.color.bgBase }}
@@ -84,7 +120,7 @@ export default function ClientHome() {
 
       {/* Greeting */}
       <View style={styles.greeting}>
-        <Text style={[styles.greetingName, { color: t.color.textPrimary }]}>Hey, Michael 👋</Text>
+        <Text style={[styles.greetingName, { color: t.color.textPrimary }]}>Hey, {firstName} 👋</Text>
         <Text style={[styles.greetingDate, { color: t.color.textSecondary }]}>{dateLabel}</Text>
       </View>
 
@@ -99,38 +135,55 @@ export default function ClientHome() {
         </Text>
       </Pressable>
 
-      {/* ── LATEST VISIT ── */}
-      <Text style={[styles.eyebrow, { color: t.color.textMuted }]}>LATEST VISIT</Text>
-      <View style={[styles.latestCard, { backgroundColor: t.color.surfaceInput }]}>
-        <View style={[styles.barberAvatar, { backgroundColor: t.color.borderSubtle }]}>
-          <Text style={[styles.avatarInitials, { color: t.color.textSecondary }]}>
-            {dummyLastVisit.initials}
-          </Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <View style={styles.nameRow}>
-            <Text style={[styles.barberName, { color: t.color.textPrimary }]}>
-              {dummyLastVisit.barberName}
-            </Text>
-            {dummyLastVisit.isPro && (
-              <View style={[styles.proBadge, { backgroundColor: t.color.gold }]}>
-                <Text style={[styles.proBadgeText, { color: t.color.onGold }]}>PRO</Text>
+      {/* ── LATEST VISIT (hidden for guests) ── */}
+      {user && (
+        <>
+          <Text style={[styles.eyebrow, { color: t.color.textMuted }]}>LATEST VISIT</Text>
+          {loadingLatest ? (
+            <View style={[styles.latestCard, styles.latestSkeleton, { backgroundColor: t.color.surfaceInput }]} />
+          ) : latestVisit ? (
+            <View style={[styles.latestCard, { backgroundColor: t.color.surfaceInput }]}>
+              <View style={[styles.barberAvatar, { backgroundColor: t.color.borderSubtle }]}>
+                <Text style={[styles.avatarInitials, { color: t.color.textSecondary }]}>
+                  {barberInitials}
+                </Text>
               </View>
-            )}
-          </View>
-          <View style={styles.ratingRow}>
-            <StarIcon size={13} color={t.color.gold} />
-            <Text style={[styles.ratingText, { color: t.color.textSecondary }]}>
-              {dummyLastVisit.rating} ({dummyLastVisit.reviewCount})
-            </Text>
-          </View>
-        </View>
-        <Pressable
-          style={[styles.bookBtn, { backgroundColor: t.color.bgSunken, borderColor: t.color.borderStrong }]}
-        >
-          <Text style={[styles.bookBtnText, { color: t.color.textPrimary }]}>Book</Text>
-        </Pressable>
-      </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.nameRow}>
+                  <Text style={[styles.barberName, { color: t.color.textPrimary }]}>
+                    {latestVisit.barber.name}
+                  </Text>
+                  {latestVisit.barber.isPro && (
+                    <View style={[styles.proBadge, { backgroundColor: t.color.gold }]}>
+                      <Text style={[styles.proBadgeText, { color: t.color.onGold }]}>PRO</Text>
+                    </View>
+                  )}
+                </View>
+                {latestVisit.barber.rating != null && (
+                  <View style={styles.ratingRow}>
+                    <StarIcon size={13} color={t.color.gold} />
+                    <Text style={[styles.ratingText, { color: t.color.textSecondary }]}>
+                      {latestVisit.barber.rating.toFixed(1)} ({latestVisit.barber.reviewCount ?? 0})
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Pressable
+                onPress={handleBookBarber}
+                style={[styles.bookBtn, { backgroundColor: t.color.bgSunken, borderColor: t.color.borderStrong }]}
+              >
+                <Text style={[styles.bookBtnText, { color: t.color.textPrimary }]}>Book</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={[styles.latestCard, styles.emptyCard, { backgroundColor: t.color.surfaceInput }]}>
+              <Text style={[styles.emptyText, { color: t.color.textSecondary }]}>
+                No visits yet — book your first appointment!
+              </Text>
+            </View>
+          )}
+        </>
+      )}
 
       {/* ── NEARBY BARBERSHOP ── */}
       <View style={styles.nearbyHeader}>
@@ -152,39 +205,110 @@ export default function ClientHome() {
           <Text style={[styles.mapBtnText, { color: t.color.textSecondary }]}>Map</Text>
         </Pressable>
       </View>
-      <View style={styles.nearbyRow}>
-        {dummyNearbySalons.map((salon) => (
-          <View key={salon.id} style={[styles.nearbyCard, { backgroundColor: t.color.surfaceCard }]}>
-            {/* Image placeholder */}
-            <View style={styles.nearbyImgWrap}>
-              <View style={[styles.nearbyImg, { backgroundColor: t.color.borderSubtle }]} />
-              <View style={styles.ratingBadge}>
-                <StarIcon size={11} color={t.color.gold} />
-                <Text style={[styles.ratingBadgeText, { color: t.color.textPrimary }]}>
-                  {salon.rating}
-                </Text>
-              </View>
-            </View>
-            {/* Card content */}
-            <View style={styles.nearbyContent}>
-              <Text style={[styles.openNow, { color: t.color.gold }]}>OPEN NOW</Text>
-              <Text style={[styles.nearbyName, { color: t.color.textPrimary }]}>{salon.name}</Text>
-              <View style={styles.distanceRow}>
-                <MapPinIcon color={t.color.textSecondary} />
-                <Text style={[styles.distanceText, { color: t.color.textSecondary }]}>
-                  {salon.distanceKm} km
-                </Text>
-              </View>
+
+      {locStatus === 'granted' && (
+        <View style={styles.radiusRow}>
+          {RADIUS_OPTIONS_KM.map((km) => {
+            const active = km === searchRadiusKm;
+            return (
               <Pressable
-                onPress={() => router.push({ pathname: '/(client)/salon/[id]', params: { id: salon.id } })}
-                style={[styles.bookNowBtn, { backgroundColor: t.color.textPrimary }]}
+                key={km}
+                onPress={() => setSearchRadiusKm(km)}
+                style={[
+                  styles.radiusPill,
+                  {
+                    backgroundColor: active ? t.color.gold : t.color.surfaceElevated,
+                    borderColor: active ? t.color.gold : t.color.tabBorder,
+                  },
+                ]}
               >
-                <Text style={[styles.bookNowText, { color: t.color.bgBase }]}>Book Now</Text>
+                <Text style={[styles.radiusPillText, { color: active ? t.color.onGold : t.color.textSecondary }]}>
+                  {km} km
+                </Text>
               </Pressable>
-            </View>
+            );
+          })}
+        </View>
+      )}
+
+      {locStatus === 'idle' && (
+        <Pressable
+          onPress={requestLocation}
+          style={[styles.locationPrompt, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}
+        >
+          <MapPinIcon color={t.color.gold} />
+          <Text style={[styles.locationPromptText, { color: t.color.textPrimary }]}>
+            Enable location to find salons near you
+          </Text>
+        </Pressable>
+      )}
+
+      {locStatus === 'requesting' && (
+        <View style={styles.nearbyRow}>
+          <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
+          <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
+        </View>
+      )}
+
+      {(locStatus === 'denied' || locStatus === 'error') && (
+        <View style={[styles.locationPrompt, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}>
+          <MapPinIcon color={t.color.textMuted} />
+          <Text style={[styles.locationPromptText, { color: t.color.textSecondary }]}>
+            Location access denied — enable it in your device settings to see nearby salons.
+          </Text>
+        </View>
+      )}
+
+      {locStatus === 'granted' && (
+        loadingNearby ? (
+          <View style={styles.nearbyRow}>
+            <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
+            <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
           </View>
-        ))}
-      </View>
+        ) : nearby.length === 0 ? (
+          <View style={[styles.locationPrompt, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}>
+            <Text style={[styles.locationPromptText, { color: t.color.textSecondary }]}>
+              No salons found within {searchRadiusKm} km.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.nearbyRow}>
+            {nearby.map((salon) => (
+              <View key={salon.id} style={[styles.nearbyCard, { backgroundColor: t.color.surfaceCard }]}>
+                <View style={styles.nearbyImgWrap}>
+                  <View style={[styles.nearbyImg, { backgroundColor: t.color.borderSubtle }]} />
+                  {salon.rating != null && (
+                    <View style={styles.ratingBadge}>
+                      <StarIcon size={11} color={t.color.gold} />
+                      <Text style={[styles.ratingBadgeText, { color: t.color.textPrimary }]}>
+                        {salon.rating.toFixed(1)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.nearbyContent}>
+                  {salon.isOpen === true && (
+                    <Text style={[styles.openNow, { color: t.color.gold }]}>OPEN NOW</Text>
+                  )}
+                  <Text style={[styles.nearbyName, { color: t.color.textPrimary }]}>{salon.name}</Text>
+                  <View style={styles.distanceRow}>
+                    <MapPinIcon color={t.color.textSecondary} />
+                    <Text style={[styles.distanceText, { color: t.color.textSecondary }]}>
+                      {salon.distanceKm != null ? `${salon.distanceKm} km` : 'Distance unavailable'}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => handleOpenSalon(salon.id)}
+                    style={[styles.bookNowBtn, { backgroundColor: t.color.textPrimary }]}
+                  >
+                    <Text style={[styles.bookNowText, { color: t.color.bgBase }]}>View</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        )
+      )}
     </ScrollView>
   );
 }
@@ -209,6 +333,9 @@ const styles = StyleSheet.create({
 
   // Latest visit card
   latestCard:      { marginHorizontal: 22, borderRadius: 20, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  latestSkeleton:  { height: 74, opacity: 0.5 },
+  emptyCard:       { paddingVertical: 18, paddingHorizontal: 16 },
+  emptyText:       { fontSize: 13, fontWeight: '500' },
   barberAvatar:    { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   avatarInitials:  { fontSize: 14, fontWeight: '700' },
   nameRow:         { flexDirection: 'row', alignItems: 'center', gap: 7 },
@@ -220,9 +347,19 @@ const styles = StyleSheet.create({
   bookBtn:         { borderWidth: 1, borderRadius: 100, paddingHorizontal: 18, paddingVertical: 9, flexShrink: 0 },
   bookBtnText:     { fontSize: 13, fontWeight: '700' },
 
+  // Location prompt / empty states
+  locationPrompt:  { marginHorizontal: 22, borderRadius: 16, borderWidth: 1, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  locationPromptText: { flex: 1, fontSize: 12.5, fontWeight: '500', lineHeight: 18 },
+
+  // Radius selector
+  radiusRow:       { flexDirection: 'row', gap: 8, paddingHorizontal: 22, paddingBottom: 12 },
+  radiusPill:      { borderWidth: 1, borderRadius: 100, paddingHorizontal: 12, paddingVertical: 6 },
+  radiusPillText:  { fontSize: 12, fontWeight: '700' },
+
   // Nearby
   nearbyRow:       { flexDirection: 'row', gap: 12, paddingHorizontal: 22 },
   nearbyCard:      { flex: 1, borderRadius: 20, overflow: 'hidden' },
+  nearbySkeleton:  { height: 190, opacity: 0.5 },
   nearbyImgWrap:   { padding: 8, paddingBottom: 0 },
   nearbyImg:       { width: '100%', height: 98, borderRadius: 14 },
   ratingBadge:     { position: 'absolute', top: 14, left: 14, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 100, paddingHorizontal: 8, paddingVertical: 3, flexDirection: 'row', alignItems: 'center', gap: 4 },
