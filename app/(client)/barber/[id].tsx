@@ -58,11 +58,10 @@ export default function BarberProfile() {
   }, [id]);
 
   const handleBook = () => {
-    // Still a separate choice from the booking stack's own "Choose your stylist" step
-    // (booking/stylist.tsx) by design — unifying that redundancy is a separate UX decision,
-    // not this fix. We only seed the salon context here, real or not.
-    draft.init(salonId ?? '', '', {
-      barberName: '',
+    // Barber-first path (SKILL_fix_mobile_booking_barber_availability): preselecting the real
+    // staff id here is what lets services.tsx skip the redundant "Choose your stylist" step.
+    draft.init(salonId ?? '', barber?.id ?? '', {
+      barberName: barber?.name ?? '',
       salonName: salonName ?? '',
     });
     router.push('/(client)/booking/services');
@@ -163,8 +162,9 @@ export default function BarberProfile() {
         <Pressable
           style={({ pressed }) => [
             styles.ctaBtn,
-            { backgroundColor: t.color.textPrimary, opacity: pressed ? 0.88 : 1 },
+            { backgroundColor: t.color.textPrimary, opacity: pressed || loading ? 0.88 : 1 },
           ]}
+          disabled={loading}
           onPress={handleBook}
         >
           <Text style={[styles.ctaBtnText, { color: t.color.bgBase }]}>Book</Text>

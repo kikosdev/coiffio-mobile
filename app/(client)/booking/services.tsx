@@ -181,7 +181,11 @@ export default function ServicesScreen() {
             },
           ]}
           disabled={!canContinue}
-          onPress={() => router.push('/(client)/booking/stylist')}
+          onPress={() =>
+            // Barber-first (came from a barber profile "Book"): stylist is already real and
+            // preselected, so skip the redundant "Choose your stylist" step.
+            router.push(draft.barberId ? '/(client)/booking/datetime' : '/(client)/booking/stylist')
+          }
         >
           <Text style={[styles.ctaBtnText, { color: canContinue ? t.color.bgBase : t.color.textMuted }]}>
             Continue

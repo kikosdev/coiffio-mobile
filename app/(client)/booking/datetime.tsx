@@ -80,7 +80,17 @@ export default function DateTimeScreen() {
     if (!draft.barberId || serviceIds.length === 0) return;
     setLoading(true);
     fetchTimeline(serviceIds, monthStart, draft.barberId, daysCount)
-      .then(setTimeline)
+      .then((data) => {
+        setTimeline(data);
+        // Skip straight to the first working day with a still-bookable slot — mainly saves
+        // a tap on the barber-first path, where service + stylist are already both known.
+        const firstOpen = data.find((d) => {
+          if (d.isClosed) return false;
+          const slots = d.stylists.find((s) => s.stylistId === draft.barberId)?.slots ?? [];
+          return slots.some((s) => new Date(s.start).getTime() > Date.now());
+        });
+        setSelectedDate((prev) => prev ?? firstOpen?.date ?? null);
+      })
       .catch(() => setTimeline([]))
       .finally(() => setLoading(false));
   }, [monthStart, daysCount, draft.barberId, serviceIds.join(',')]);
