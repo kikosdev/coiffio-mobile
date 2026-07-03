@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView,
+  View, Text, TouchableOpacity, ScrollView, Pressable, Modal,
   StyleSheet, ViewStyle, TextStyle, StyleProp,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -363,56 +363,6 @@ export function Wordmark({ tag, style }: WordmarkProps) {
   );
 }
 
-// ── SurfaceSwitcher ──────────────────────────────────────────────────────────
-
-import { useRoleStore } from '../state/role';
-import { Role } from '../theme/tokens';
-import { router } from 'expo-router';
-
-const roleRoutes: Record<Role, string> = {
-  client: '/(client)/home',
-  staff:  '/(staff)/today',
-  owner:  '/(owner)/hq',
-};
-
-export function SurfaceSwitcher() {
-  const t = useTheme();
-  const { role, setRole } = useRoleStore();
-
-  function switchTo(r: Role) {
-    if (r === role) return;
-    setRole(r);
-    router.replace(roleRoutes[r] as any);
-  }
-
-  return (
-    <View style={{ marginTop: 8 }}>
-      <View style={{ borderTopWidth: 1, borderTopColor: t.color.borderSubtle, paddingTop: 20, marginTop: 8 }}>
-        <Eyebrow style={{ paddingHorizontal: t.spacing.xxl, marginBottom: 12 }}>Prototype · Switch Surface</Eyebrow>
-        {(['client', 'staff', 'owner'] as Role[]).map((r) => (
-          <TouchableOpacity
-            key={r}
-            onPress={() => switchTo(r)}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingHorizontal: t.spacing.xxl,
-              paddingVertical: 14,
-              backgroundColor: r === role ? t.color.goldSoft : 'transparent',
-            }}
-          >
-            <T variant="body" color={r === role ? t.color.gold : t.color.textSecondary}>
-              {r === 'client' ? 'Client' : r === 'staff' ? 'Barber (Staff)' : 'Owner (HQ)'}
-            </T>
-            {r === role && <Badge variant="gold">Active</Badge>}
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 // ── ProfileScreen (shared shell) ─────────────────────────────────────────────
 
 interface ProfileScreenProps {
@@ -433,9 +383,59 @@ export function ProfileScreen({ name, initials, subtitle, children }: ProfileScr
         <T variant="caption" style={{ marginTop: 4 }}>{subtitle}</T>
       </View>
       {children}
-      <SurfaceSwitcher />
       <View style={{ height: 32 }} />
     </Screen>
+  );
+}
+
+// ── ConfirmDialog ────────────────────────────────────────────────────────────
+
+interface ConfirmDialogProps {
+  visible: boolean;
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  destructive?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+/** Themed replacement for Alert.alert()'s native OS dialog — matches the app's dark UI. */
+export function ConfirmDialog({
+  visible, title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel',
+  destructive, onConfirm, onCancel,
+}: ConfirmDialogProps) {
+  const t = useTheme();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <View style={{
+          width: '100%',
+          maxWidth: 340,
+          backgroundColor: t.color.surfaceCard,
+          borderRadius: t.radius.xl,
+          borderWidth: 1,
+          borderColor: t.color.borderSubtle,
+          padding: t.spacing.xl,
+        }}>
+          <T variant="subtitle" style={{ marginBottom: message ? 8 : 22 }}>{title}</T>
+          {message && (
+            <T variant="body" color={t.color.textSecondary} style={{ marginBottom: 22, lineHeight: 20 }}>
+              {message}
+            </T>
+          )}
+          <Row justify="flex-end" gap={24}>
+            <Pressable onPress={onCancel} hitSlop={8}>
+              <T variant="label" color={t.color.textSecondary}>{cancelLabel}</T>
+            </Pressable>
+            <Pressable onPress={onConfirm} hitSlop={8}>
+              <T variant="label" color={destructive ? t.color.danger : t.color.gold}>{confirmLabel}</T>
+            </Pressable>
+          </Row>
+        </View>
+      </View>
+    </Modal>
   );
 }
 

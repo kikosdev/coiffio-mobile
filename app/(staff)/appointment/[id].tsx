@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,7 +7,6 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useAppointment } from '../../../src/hooks/staff/useAppointment';
 import { formatMoney } from '../../../src/utils/formatMoney';
-import { todayDate } from '../../../src/data/staff/today';
 
 function ChevronLeft({ color }: { color: string }) {
   return (
@@ -46,24 +46,34 @@ export default function AppointmentDetail() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: appt, advanceState } = useAppointment(id ?? '');
+  const { data: appt, isLoading, error, advanceState } = useAppointment(id ?? '');
+  const [advancing, setAdvancing] = useState(false);
 
   if (!appt) {
     return (
       <View style={[styles.root, { backgroundColor: t.color.bgBase, justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: t.color.textMuted }}>Appointment not found.</Text>
+        <Text style={{ color: t.color.textMuted }}>
+          {isLoading ? 'Loading…' : error ?? 'Appointment not found.'}
+        </Text>
       </View>
     );
   }
 
-  const dateLabel = format(parseISO(todayDate), 'EEE, d MMM');
-  const startParsed = parse(appt.startTime, 'HH:mm', parseISO(todayDate));
+  const dateLabel = format(parseISO(appt.date), 'EEE, d MMM');
+  const startParsed = parse(appt.startTime, 'HH:mm', parseISO(appt.date));
   const endParsed   = addMinutes(startParsed, appt.durationMin);
   const timeRange   = `${format(startParsed, 'HH:mm')}–${format(endParsed, 'HH:mm')}`;
 
-  function handleAdvance() {
-    if (appt!.state === 'done') return;
-    advanceState();
+  async function handleAdvance() {
+    if (appt!.state === 'done' || advancing) return;
+    setAdvancing(true);
+    try {
+      await advanceState();
+    } catch {
+      Alert.alert('Could not update', 'Something went wrong recording this checkout. Please try again.');
+    } finally {
+      setAdvancing(false);
+    }
   }
 
   function handleReschedule() {
@@ -175,10 +185,10 @@ export default function AppointmentDetail() {
             },
           ]}
           onPress={handleAdvance}
-          disabled={appt.state === 'done'}
+          disabled={appt.state === 'done' || advancing}
         >
           <Text style={[styles.btnPrimaryTxt, { color: appt.state === 'done' ? t.color.success : t.color.bgBase }]}>
-            {actionLabel(appt.state)}
+            {advancing ? 'Saving…' : actionLabel(appt.state)}
           </Text>
         </Pressable>
       </View>

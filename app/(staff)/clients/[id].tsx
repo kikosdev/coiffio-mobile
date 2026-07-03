@@ -33,12 +33,14 @@ export default function ClientDetail() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const client = useMyClient(id ?? '');
+  const { data: client, isLoading, error } = useMyClient(id ?? '');
 
   if (!client) {
     return (
       <View style={[styles.root, { backgroundColor: t.color.bgBase, justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: t.color.textMuted }}>Client not found.</Text>
+        <Text style={{ color: t.color.textMuted }}>
+          {isLoading ? 'Loading…' : error ?? 'Client not found.'}
+        </Text>
       </View>
     );
   }
@@ -95,7 +97,7 @@ export default function ClientDetail() {
           </View>
           <View style={[styles.statCard, { backgroundColor: t.color.surfaceCard }]}>
             <Text style={[styles.statValue, { color: t.color.textPrimary }]}>
-              {format(parseISO(client.lastVisitDate), 'd MMM')}
+              {client.lastVisitDate ? format(parseISO(client.lastVisitDate), 'd MMM') : '—'}
             </Text>
             <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Last visit</Text>
           </View>

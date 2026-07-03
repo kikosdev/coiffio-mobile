@@ -4,16 +4,18 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import {
   Screen, ScreenHeader, Card, Row, T, Avatar, Badge, StatusDot, Button,
 } from '../../src/components/kit';
-import { dummyTeam } from '../../src/data/dummy';
+import { useMySalon } from '../../src/hooks/owner/useMySalon';
 
 export default function OwnerTeam() {
   const t = useTheme();
+  const { data: salon, isLoading } = useMySalon();
+  const team = salon?.team ?? [];
 
   return (
     <Screen>
       <ScreenHeader
         title="Team"
-        subtitle={`${dummyTeam.length} barbers`}
+        subtitle={isLoading ? 'Loading…' : `${team.length} barbers`}
         right={
           <Button
             variant="gold"
@@ -26,7 +28,7 @@ export default function OwnerTeam() {
       />
 
       <View style={{ paddingHorizontal: t.spacing.xxl, gap: 10 }}>
-        {dummyTeam.map((b) => (
+        {team.map((b) => (
           <Card
             key={b.id}
             style={{ padding: t.spacing.md }}
@@ -41,7 +43,7 @@ export default function OwnerTeam() {
                     {b.isPro && <Badge variant="pro">PRO</Badge>}
                   </Row>
                   <T variant="small" color={t.color.textSecondary} style={{ marginTop: 3 }}>
-                    {b.salon}
+                    {salon?.name}
                   </T>
                 </View>
               </Row>

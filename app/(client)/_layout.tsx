@@ -68,7 +68,6 @@ export default function ClientLayout() {
       <Tabs.Screen name="appointments" options={{ title: 'Bookings',     tabBarIcon: ({ color }) => <CalendarIcon color={color} /> }} />
       <Tabs.Screen name="offers"       options={{ title: 'Offers',       tabBarIcon: ({ color }) => <TagIcon color={color} /> }} />
       <Tabs.Screen name="profile"      options={{ title: 'Profile',      tabBarIcon: ({ color }) => <UserIcon color={color} /> }} />
-      <Tabs.Screen name="bookings"     options={{ href: null }} />
       <Tabs.Screen name="choose-location" options={{ href: null }} />
       <Tabs.Screen name="salon"        options={{ href: null }} />
       <Tabs.Screen name="barber"       options={{ href: null }} />

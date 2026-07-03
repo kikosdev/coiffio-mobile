@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useRoleStore } from '../../src/state/role';
 import { useAuthStore } from '../../src/stores/auth';
-import { resolveRole, ROLE_AUTH } from '../../src/features/auth/roleConfig';
+import { resolveRole, ROLE_AUTH, mapBackendRoleToSurface } from '../../src/features/auth/roleConfig';
 import { Role } from '../../src/theme/tokens';
 
 // ── SVG icons (react-native-svg, no @expo/vector-icons dependency) ──────────
@@ -152,18 +152,15 @@ export default function LoginScreen() {
   const [formError, setFormError] = useState<string | null>(null);
 
   async function handleSignIn() {
-    if (role !== 'client') {
-      // Staff/owner auth isn't wired to the backend yet — keep prototype flow.
-      setRole(role);
-      router.replace(cfg.home as never);
-      return;
-    }
     setFormError(null);
     setSubmitting(true);
     try {
-      await login(identifier.trim(), password);
-      setRole('client');
-      router.replace(cfg.home as never);
+      const user = await login(identifier.trim(), password);
+      // Redirect by the account's real role, not the login variant the user tapped —
+      // a stylist landing on the client home would be a broken/confusing state.
+      const surface = mapBackendRoleToSurface(user.role);
+      setRole(surface);
+      router.replace(ROLE_AUTH[surface].home as never);
     } catch {
       setFormError('Invalid email/phone or password.');
     } finally {

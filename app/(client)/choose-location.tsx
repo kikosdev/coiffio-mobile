@@ -8,25 +8,11 @@ import WebView, { WebViewMessageEvent } from 'react-native-webview';
 import * as Location from 'expo-location';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../src/theme/ThemeProvider';
-import { dummySalonPins, SalonPin } from '../../src/data/dummy';
+import { useHomeStore } from '../../src/stores/home';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const FALLBACK = { lat: 36.8065, lng: 10.1815 };
-
-// ── Haversine distance (km) ──────────────────────────────────────────────────
-
-function haversine(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((a.lat * Math.PI) / 180) *
-      Math.cos((b.lat * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.asin(Math.sqrt(h));
-}
 
 // ── Leaflet HTML (injected inline — dark CARTO tiles, no key required) ───────
 
@@ -104,14 +90,6 @@ function MoreHorizontal({ color }: { color: string }) {
   );
 }
 
-function StarIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <Path d="M12 2l2.9 6 6.6.6-5 4.3 1.5 6.5L12 16.5 6 20l1.5-6.6-5-4.3 6.6-.6z" />
-    </Svg>
-  );
-}
-
 function MapPinIcon({ color }: { color: string }) {
   return (
     <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
@@ -135,35 +113,38 @@ export default function ChooseLocation() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
-  const selectedSalon = selectedId ? dummySalonPins.find((s) => s.id === selectedId) ?? null : null;
+  const nearby = useHomeStore((s) => s.nearby);
+  const fetchNearby = useHomeStore((s) => s.fetchNearby);
 
-  const salonsWithDist = dummySalonPins.map((s) => ({
-    ...s,
-    distanceKm: user ? +haversine(user, s).toFixed(1) : null,
-  }));
-  const sortedNearby = [...salonsWithDist].sort((a, b) =>
-    (a.distanceKm ?? 999) - (b.distanceKm ?? 999)
-  );
+  // Only salons with real geocoded coordinates can be placed as map pins.
+  const geocodedSalons = nearby.filter((s) => s.lat != null && s.lng != null) as
+    (typeof nearby[number] & { lat: number; lng: number })[];
 
-  // Request geolocation
+  const selectedSalon = selectedId ? nearby.find((s) => s.id === selectedId) ?? null : null;
+  const sortedNearby = [...nearby].sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+
+  // Request geolocation, then fetch real nearby salons for that position
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        setUser({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      } else {
-        setUser(FALLBACK);
-      }
+      const pos = status === 'granted'
+        ? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+            .then((p) => ({ lat: p.coords.latitude, lng: p.coords.longitude }))
+        : FALLBACK;
+      setUser(pos);
+      fetchNearby(pos.lat, pos.lng, 20);
     })();
   }, []);
 
-  // Push data into WebView after map + user both ready
+  // Push data into WebView after map + user + salons are ready
   const injectData = useCallback(() => {
     if (!mapReady || !webviewRef.current) return;
-    const payload = JSON.stringify({ user: user ?? FALLBACK, salons: dummySalonPins });
+    const payload = JSON.stringify({
+      user: user ?? FALLBACK,
+      salons: geocodedSalons.map((s) => ({ id: s.id, lat: s.lat, lng: s.lng })),
+    });
     webviewRef.current.injectJavaScript(`window.__setData(${payload}); true;`);
-  }, [mapReady, user]);
+  }, [mapReady, user, geocodedSalons]);
 
   useEffect(() => { injectData(); }, [injectData]);
 
@@ -250,15 +231,14 @@ export default function ChooseLocation() {
                 <Text style={[styles.cardName, { color: t.color.textPrimary }]}>
                   {selectedSalon.name}
                 </Text>
-                <View style={styles.cardMeta}>
-                  <StarIcon size={13} color={t.color.gold} />
-                  <Text style={[styles.cardMetaText, { color: t.color.textSecondary }]}>
-                    {selectedSalon.rating} ({selectedSalon.reviews})
-                    {salonsWithDist.find((s) => s.id === selectedSalon.id)?.distanceKm != null
-                      ? ` · ${salonsWithDist.find((s) => s.id === selectedSalon.id)!.distanceKm} km`
-                      : ''}
-                  </Text>
-                </View>
+                {selectedSalon.distanceKm != null && (
+                  <View style={styles.cardMeta}>
+                    <MapPinIcon color={t.color.textSecondary} />
+                    <Text style={[styles.cardMetaText, { color: t.color.textSecondary }]}>
+                      {selectedSalon.distanceKm} km
+                    </Text>
+                  </View>
+                )}
               </View>
               <Pressable
                 style={[styles.bookNowBtn, { backgroundColor: t.color.textPrimary }]}
@@ -292,13 +272,8 @@ export default function ChooseLocation() {
                   {item.name}
                 </Text>
                 <View style={styles.nearbyMeta}>
-                  <StarIcon size={13} color={t.color.gold} />
-                  <Text style={[styles.nearbyMetaText, { color: t.color.textSecondary }]}>
-                    {item.rating} ({item.reviews})
-                  </Text>
                   {item.distanceKm != null && (
                     <>
-                      <Text style={{ color: t.color.textMuted }}> · </Text>
                       <MapPinIcon color={t.color.textMuted} />
                       <Text style={[styles.nearbyMetaText, { color: t.color.textMuted }]}>
                         {item.distanceKm} km

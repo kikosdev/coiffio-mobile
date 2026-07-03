@@ -1,10 +1,9 @@
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useMyProfile } from '../../src/hooks/staff/useMyProfile';
-import { SurfaceSwitcher } from '../../src/components/kit';
 
 function GearIcon({ color }: { color: string }) {
   return (
@@ -18,13 +17,6 @@ function ChevronRight({ color }: { color: string }) {
   return (
     <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M9 6l6 6-6 6" />
-    </Svg>
-  );
-}
-function StarIcon({ color, size = 13 }: { color: string; size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <Path d="M12 2l2.9 6 6.6.6-5 4.3 1.5 6.5L12 16.5 6 20l1.5-6.6-5-4.3 6.6-.6z" />
     </Svg>
   );
 }
@@ -58,7 +50,7 @@ export default function StaffProfile() {
           <Text style={[styles.coverTitle, { color: t.color.textPrimary }]}>My profile</Text>
           <Pressable
             style={[styles.gearBtn, { backgroundColor: 'rgba(0,0,0,0.40)' }]}
-            onPress={() => Alert.alert('Settings', 'Settings coming soon.')}
+            onPress={() => router.push('/(staff)/settings' as any)}
             hitSlop={10}
           >
             <GearIcon color={t.color.textPrimary} />
@@ -73,15 +65,9 @@ export default function StaffProfile() {
         </View>
         <View style={{ paddingBottom: 6, flex: 1 }}>
           <Text style={[styles.name, { color: t.color.textPrimary }]}>{profile.name}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <StarIcon color={t.color.gold} size={13} />
-              <Text style={[styles.rating, { color: t.color.textPrimary }]}>{profile.rating}</Text>
-            </View>
-            {profile.isPro && (
-              <Text style={[styles.proChip, { color: t.color.gold }]}>PRO BARBER</Text>
-            )}
-          </View>
+          {profile.isPro && (
+            <Text style={[styles.proChip, { color: t.color.gold, marginTop: 3 }]}>PRO BARBER</Text>
+          )}
         </View>
       </View>
 
@@ -96,12 +82,6 @@ export default function StaffProfile() {
             {profile.stats.cuts >= 1000 ? `${(profile.stats.cuts / 1000).toFixed(1)}k` : profile.stats.cuts}
           </Text>
           <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Cuts</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: t.color.surfaceCard }]}>
-          <Text style={[styles.statValue, { color: t.color.textPrimary }]}>
-            {profile.stats.yearsExp}<Text style={[styles.statUnit, { color: t.color.textMuted }]}>y</Text>
-          </Text>
-          <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Experience</Text>
         </View>
       </View>
 
@@ -137,7 +117,6 @@ export default function StaffProfile() {
         </Text>
       </View>
 
-      <SurfaceSwitcher />
       <View style={{ height: 16 }} />
     </ScrollView>
   );
@@ -156,7 +135,6 @@ const styles = StyleSheet.create({
   avatar:         { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 3 },
   avatarTxt:      { fontSize: 24, fontWeight: '800' },
   name:           { fontSize: 19, fontWeight: '800' },
-  rating:         { fontSize: 12, fontWeight: '600' },
   proChip:        { fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
 
   statsRow:       { flexDirection: 'row', gap: 10, paddingHorizontal: 22, marginBottom: 16 },

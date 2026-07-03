@@ -1,13 +1,15 @@
+import { useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { format, parseISO } from 'date-fns';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../src/theme/ThemeProvider';
-import { useTodayBoard } from '../../src/hooks/staff/useTodayBoard';
+import { useTodayBoard, TodayState } from '../../src/hooks/staff/useTodayBoard';
+import { useNotifications } from '../../src/hooks/useNotifications';
+import { useAuthStore } from '../../src/stores/auth';
 import { formatMoney } from '../../src/utils/formatMoney';
-import { TodayAppointment, TodayState } from '../../src/data/staff/today';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -26,14 +28,6 @@ function ChevronRight({ color }: { color: string }) {
     </Svg>
   );
 }
-function StarIcon({ color, size = 13 }: { color: string; size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <Path d="M12 2l2.9 6 6.6.6-5 4.3 1.5 6.5L12 16.5 6 20l1.5-6.6-5-4.3 6.6-.6z" />
-    </Svg>
-  );
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function stateDot(state: TodayState, t: ReturnType<typeof useTheme>) {
@@ -56,7 +50,13 @@ function stateLabel(state: TodayState) {
 export default function StaffToday() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, advanceState } = useTodayBoard();
+  const { data, advanceState, refresh } = useTodayBoard();
+  const { unreadCount } = useNotifications();
+  const user = useAuthStore((s) => s.user);
+
+  // Refetch whenever this tab regains focus, so a booking made elsewhere shows up
+  // without needing an app restart.
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const { date, appointments } = data;
   const done      = appointments.filter((a) => a.state === 'done');
@@ -65,10 +65,12 @@ export default function StaffToday() {
   const nextUp    = inChair[0] ?? waiting[0] ?? null;
   const restOfDay = appointments.filter((a) => a.id !== nextUp?.id && a.state !== 'done');
 
-  const todayEarnings = done.reduce((s, a) => s + a.totalTnd, 0);
-  const bookedMin     = appointments.reduce((s, a) => s + a.durationMin, 0);
-  const bookedHours   = (bookedMin / 60).toFixed(1);
-  const rating        = 4.8;
+  const todayEarnings  = done.reduce((s, a) => s + a.totalTnd, 0);
+  const bookedMin      = appointments.reduce((s, a) => s + a.durationMin, 0);
+  const bookedHours    = (bookedMin / 60).toFixed(1);
+  const clientsToday   = new Set(appointments.map((a) => a.clientId)).size;
+  const staffName      = user?.name ?? '';
+  const staffInitials  = staffName.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
 
   const dateLabel = format(parseISO(date), 'EEEE, d MMMM');
 
@@ -81,16 +83,21 @@ export default function StaffToday() {
       {/* ── Top bar ── */}
       <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
         <View style={[styles.avatarCircle, { backgroundColor: t.color.gold }]}>
-          <Text style={[styles.avatarInitials, { color: t.color.onGold }]}>RA</Text>
+          <Text style={[styles.avatarInitials, { color: t.color.onGold }]}>{staffInitials}</Text>
         </View>
         <View style={{ flex: 1, paddingLeft: 12 }}>
           <Text style={[styles.greeting, { color: t.color.textMuted }]}>Good morning</Text>
-          <Text style={[styles.staffName, { color: t.color.textPrimary }]}>Richard Anderson</Text>
+          <Text style={[styles.staffName, { color: t.color.textPrimary }]}>{staffName}</Text>
         </View>
-        <View style={[styles.bellWrap, { backgroundColor: t.color.surfaceInput }]}>
+        <Pressable
+          style={[styles.bellWrap, { backgroundColor: t.color.surfaceInput }]}
+          onPress={() => router.push('/notifications')}
+        >
           <BellIcon color={t.color.textPrimary} />
-          <View style={[styles.bellDot, { backgroundColor: t.color.gold, borderColor: t.color.bgBase }]} />
-        </View>
+          {unreadCount > 0 && (
+            <View style={[styles.bellDot, { backgroundColor: t.color.gold, borderColor: t.color.bgBase }]} />
+          )}
+        </Pressable>
       </View>
 
       <ScrollView
@@ -109,9 +116,6 @@ export default function StaffToday() {
           <Text style={[styles.heroEyebrow, { color: t.color.onGold }]}>TODAY'S EARNINGS</Text>
           <View style={styles.heroAmountRow}>
             <Text style={[styles.heroAmount, { color: t.color.onGold }]}>{formatMoney(todayEarnings)}</Text>
-            <View style={[styles.heroChangeBadge, { backgroundColor: 'rgba(0,0,0,0.15)' }]}>
-              <Text style={[styles.heroChangeTxt, { color: t.color.onGold }]}>▲ 12%</Text>
-            </View>
           </View>
           <Text style={[styles.heroSub, { color: t.color.onGold }]}>
             {done.length} of {appointments.length} booked · {waiting.length} slot{waiting.length !== 1 ? 's' : ''} left
@@ -133,11 +137,8 @@ export default function StaffToday() {
             <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Booked time</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: t.color.surfaceCard }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <StarIcon color={t.color.gold} size={14} />
-              <Text style={[styles.statValue, { color: t.color.textPrimary }]}>{rating}</Text>
-            </View>
-            <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Rating</Text>
+            <Text style={[styles.statValue, { color: t.color.textPrimary }]}>{clientsToday}</Text>
+            <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Clients</Text>
           </View>
         </View>
 

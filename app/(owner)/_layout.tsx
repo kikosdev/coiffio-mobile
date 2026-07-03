@@ -1,9 +1,11 @@
 import { Tabs } from 'expo-router';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { LayoutGrid, Banknote, Store, Users, BarChart2, Settings } from 'lucide-react-native';
+import { useRoleGuard } from '../../src/hooks/useRoleGuard';
 
 export default function OwnerLayout() {
   const t = useTheme();
+  useRoleGuard('owner');
 
   return (
     <Tabs
@@ -50,6 +52,7 @@ export default function OwnerLayout() {
       <Tabs.Screen name="team/[id]"   options={{ href: null, tabBarStyle: { display: 'none' } }} />
       <Tabs.Screen name="team/invite" options={{ href: null, tabBarStyle: { display: 'none' } }} />
       <Tabs.Screen name="salon/[id]"  options={{ href: null, tabBarStyle: { display: 'none' } }} />
+      <Tabs.Screen name="change-password" options={{ href: null, tabBarStyle: { display: 'none' } }} />
     </Tabs>
   );
 }

@@ -4,9 +4,8 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../../src/theme/ThemeProvider';
-import { useMyEarnings } from '../../src/hooks/staff/useMyEarnings';
+import { useMyEarnings, EarningPeriod } from '../../src/hooks/staff/useMyEarnings';
 import { formatMoney } from '../../src/utils/formatMoney';
-import { EarningPeriod } from '../../src/data/staff/earnings';
 
 function ChevronLeft({ color }: { color: string }) {
   return (
@@ -54,7 +53,9 @@ export default function StaffEarnings() {
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 4 }}>
             <Text style={[styles.totalAmount, { color: t.color.textPrimary }]}>{formatMoney(data.totalTnd)}</Text>
             <View style={[styles.changeBadge, { backgroundColor: t.color.goldSoft }]}>
-              <Text style={[styles.changeTxt, { color: t.color.gold }]}>▲ {data.changePct}%</Text>
+              <Text style={[styles.changeTxt, { color: t.color.gold }]}>
+                {data.changePct >= 0 ? '▲' : '▼'} {Math.abs(data.changePct)}%
+              </Text>
             </View>
           </View>
         </View>

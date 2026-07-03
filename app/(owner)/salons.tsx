@@ -7,14 +7,25 @@ import {
   Screen, ScreenHeader, Row, T, Card, Badge, Button,
 } from '../../src/components/kit';
 import { ComingNextLock } from '../../src/components/owner/ComingNextLock';
-import { dummySingleSalon, dummyTeam } from '../../src/data/dummy';
+import { useMySalon } from '../../src/hooks/owner/useMySalon';
 import { formatMoney } from '../../src/utils/formatMoney';
 
 export default function OwnerSalons() {
   const t = useTheme();
   const [showAddLock, setShowAddLock] = useState(false);
-  const salon = dummySingleSalon;
-  const barberCount = dummyTeam.length;
+  const { data: salon, isLoading } = useMySalon();
+
+  if (!salon) {
+    return (
+      <Screen scroll={false} style={{ paddingHorizontal: 0 }}>
+        <ScreenHeader title="Salons" />
+        <Row justify="center" style={{ paddingTop: 80 }}>
+          <T variant="body" color={t.color.textMuted}>{isLoading ? 'Loading…' : 'Could not load salon.'}</T>
+        </Row>
+      </Screen>
+    );
+  }
+  const barberCount = salon.team.length;
 
   return (
     <Screen scroll={false} style={{ paddingHorizontal: 0 }}>
@@ -66,7 +77,7 @@ export default function OwnerSalons() {
             {/* Name + badge */}
             <Row justify="space-between" align="center" style={{ marginBottom: 6 }}>
               <T variant="label" style={{ flex: 1 }}>{salon.name}</T>
-              <Badge variant="success">OPEN</Badge>
+              <Badge variant={salon.isOpen ? 'success' : 'neutral'}>{salon.isOpen ? 'OPEN' : 'CLOSED'}</Badge>
             </Row>
 
             {/* Address */}
@@ -84,7 +95,7 @@ export default function OwnerSalons() {
               padding: t.spacing.sm,
             }}>
               <View style={{ flex: 1, alignItems: 'center' }}>
-                <T variant="label" style={{ fontSize: 12 }}>{salon.barberCount}</T>
+                <T variant="label" style={{ fontSize: 12 }}>{barberCount}</T>
                 <T variant="small" color={t.color.textMuted}>Barbers</T>
               </View>
               <View style={{ width: 1, backgroundColor: t.color.borderSubtle, height: '100%' }} />

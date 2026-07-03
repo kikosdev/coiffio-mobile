@@ -104,7 +104,7 @@ export default function StaffClients() {
                   {c.isRegular && <StarIcon color={t.color.gold} size={12} />}
                 </View>
                 <Text style={[styles.clientSub, { color: t.color.textMuted }]}>
-                  {c.visitCount} visits · last {format(parseISO(c.lastVisitDate), 'd MMM')}
+                  {c.visitCount} visits{c.lastVisitDate ? ` · last ${format(parseISO(c.lastVisitDate), 'd MMM')}` : ''}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>

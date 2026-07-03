@@ -46,9 +46,7 @@ export default function ConfirmationScreen() {
   const user = useAuthStore((s) => s.user);
   const result = draft.result;
 
-  const serviceNames = draft.pack
-    ? [draft.pack.name]
-    : draft.services.map((s) => s.name);
+  const serviceNames = draft.services.map((s) => s.name);
 
   const bookingRef = result ? `#${result._id.slice(-8).toUpperCase()}` : '—';
   const dateLabel = result ? formatSalonDate(result.start) : '—';

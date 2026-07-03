@@ -5,16 +5,25 @@ import { useTheme } from '../../../src/theme/ThemeProvider';
 import {
   Screen, Row, T, Eyebrow, Card, Avatar, Badge, Button, StatusDot,
 } from '../../../src/components/kit';
-import { dummySingleSalon, dummyTeam } from '../../../src/data/dummy';
+import { useMySalon } from '../../../src/hooks/owner/useMySalon';
 import { formatMoney } from '../../../src/utils/formatMoney';
 
 export default function SalonDetail() {
   const t = useTheme();
+  // V1 mono-salon: always resolve to the single salon regardless of the id param
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { data: salon, isLoading } = useMySalon();
 
-  // V1 mono-salon: always resolve to the single salon regardless of id
-  const salon = dummySingleSalon;
-  const team = dummyTeam.filter((b) => b.salon === salon.name);
+  if (!salon) {
+    return (
+      <Screen>
+        <Row justify="center" style={{ paddingTop: 80 }}>
+          <T variant="body" color={t.color.textMuted}>{isLoading ? 'Loading…' : 'Could not load salon.'}</T>
+        </Row>
+      </Screen>
+    );
+  }
+  const team = salon.team;
 
   return (
     <Screen>
@@ -52,7 +61,7 @@ export default function SalonDetail() {
         {/* Name + OPEN badge */}
         <Row justify="space-between" align="center" style={{ marginBottom: t.spacing.sm }}>
           <T variant="title" style={{ flex: 1 }}>{salon.name}</T>
-          <Badge variant="success">OPEN</Badge>
+          <Badge variant={salon.isOpen ? 'success' : 'neutral'}>{salon.isOpen ? 'OPEN' : 'CLOSED'}</Badge>
         </Row>
 
         {/* Address */}
@@ -64,9 +73,11 @@ export default function SalonDetail() {
         </Row>
 
         {/* Hours */}
-        <T variant="small" color={t.color.textMuted} style={{ marginBottom: t.spacing.xl }}>
-          {salon.hours}
-        </T>
+        {salon.hoursToday && (
+          <T variant="small" color={t.color.textMuted} style={{ marginBottom: t.spacing.xl }}>
+            {salon.hoursToday}
+          </T>
+        )}
 
         {/* 3 stat cards */}
         <Row gap={9} style={{ marginBottom: t.spacing.xl }}>
@@ -87,7 +98,7 @@ export default function SalonDetail() {
             <T variant="small" color={t.color.textMuted} style={{ marginTop: 2 }}>Bookings</T>
           </Card>
           <Card style={{ flex: 1, padding: t.spacing.md }}>
-            <T variant="subtitle">{salon.chairUse}%</T>
+            <T variant="subtitle">{salon.occupancyPct}%</T>
             <T variant="small" color={t.color.textMuted} style={{ marginTop: 2 }}>Chair use</T>
           </Card>
         </Row>
@@ -113,11 +124,7 @@ export default function SalonDetail() {
                   <View>
                     <T variant="body">{b.name}</T>
                     <T variant="small" color={t.color.textSecondary} style={{ marginTop: 1 }}>
-                      {b.status === 'active'
-                        ? `On chair · ${b.todayCount} today`
-                        : b.status === 'break'
-                        ? `On break · ${b.todayCount} today`
-                        : 'Off today'}
+                      {b.status === 'active' ? `${b.todayCount} today` : 'Off today'}
                     </T>
                   </View>
                 </Row>

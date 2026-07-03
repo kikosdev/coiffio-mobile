@@ -3,12 +3,13 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import {
   Screen, ScreenHeader, Card, Row, T, Eyebrow, Avatar,
 } from '../../src/components/kit';
-import { dummyAnalytics } from '../../src/data/dummy';
+import { useAnalytics } from '../../src/hooks/owner/useAnalytics';
 import { formatMoney } from '../../src/utils/formatMoney';
 
 export default function OwnerAnalytics() {
   const t = useTheme();
-  const { monthRevenue, revenueChange, byStaff, topBarbers } = dummyAnalytics;
+  const { data, isLoading } = useAnalytics();
+  const { monthRevenue, revenueChangePct, byStaff, topBarbers } = data;
 
   return (
     <Screen>
@@ -43,7 +44,9 @@ export default function OwnerAnalytics() {
             paddingHorizontal: 8, paddingVertical: 3,
             marginBottom: 4,
           }}>
-            <T variant="small" color={t.color.gold}>▲ {revenueChange}%</T>
+            <T variant="small" color={t.color.gold}>
+              {revenueChangePct >= 0 ? '▲' : '▼'} {Math.abs(revenueChangePct)}%
+            </T>
           </View>
         </Row>
       </View>
@@ -84,7 +87,6 @@ export default function OwnerAnalytics() {
               <Avatar initials={b.initials} size={38} />
               <View style={{ flex: 1 }}>
                 <T variant="body">{b.name}</T>
-                <T variant="small" color={t.color.textSecondary}>{b.salon}</T>
               </View>
               <T variant="label" numberOfLines={1} adjustsFontSizeToFit style={{ maxWidth: 100 }}>
                 {formatMoney(b.revenue)}

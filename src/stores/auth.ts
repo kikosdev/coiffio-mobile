@@ -1,15 +1,22 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { api, setAuthToken, ApiError } from '../api/client';
+import { BackendRole } from '../features/auth/roleConfig';
 
 const TOKEN_KEY = 'auth_token';
 
 export interface AuthUser {
   id: string;
+  salonId: string;
   name: string;
   email: string;
   phone: string;
-  role: 'client';
+  role: BackendRole;
+  color?: string;
+  isActive: boolean;
+  registered: boolean;
+  accountType: 'staff' | 'client';
+  staffId?: string;
   clientId?: string;
 }
 
@@ -23,8 +30,10 @@ interface AuthState {
   user: AuthUser | null;
   error: string | null;
   hydrate: () => Promise<void>;
-  login: (identifier: string, password: string) => Promise<void>;
-  registerClient: (dto: { name: string; identifier: string; phone: string; password: string; email?: string }) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<AuthUser>;
+  registerClient: (dto: { name: string; identifier: string; phone: string; password: string; email?: string }) => Promise<AuthUser>;
+  updateProfile: (dto: { name?: string; email?: string; phone?: string }) => Promise<AuthUser>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -58,6 +67,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await SecureStore.setItemAsync(TOKEN_KEY, res.token);
       setAuthToken(res.token);
       set({ user: res.user, status: 'ready' });
+      return res.user;
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Unable to sign in.';
       set({ error: message });
@@ -72,11 +82,22 @@ export const useAuthStore = create<AuthState>((set) => ({
       await SecureStore.setItemAsync(TOKEN_KEY, res.token);
       setAuthToken(res.token);
       set({ user: res.user, status: 'ready' });
+      return res.user;
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Unable to create account.';
       set({ error: message });
       throw err;
     }
+  },
+
+  updateProfile: async (dto) => {
+    const updated = await api.patch<AuthUser>('/auth/me', dto);
+    set((s) => ({ user: s.user ? { ...s.user, ...updated } : updated }));
+    return updated;
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    await api.patch('/auth/me/password', { currentPassword, newPassword });
   },
 
   logout: async () => {

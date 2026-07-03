@@ -7,7 +7,8 @@ import {
   Screen, Row, T, Eyebrow, Card, Avatar, Badge, Button,
 } from '../../../src/components/kit';
 import { ComingNextLock } from '../../../src/components/owner/ComingNextLock';
-import { dummyTeam, dummyBarberDetails } from '../../../src/data/dummy';
+import { useMySalon } from '../../../src/hooks/owner/useMySalon';
+import { useBarberDetail } from '../../../src/hooks/owner/useBarberDetail';
 import { formatMoney } from '../../../src/utils/formatMoney';
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -18,12 +19,20 @@ export default function BarberDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [showReassign, setShowReassign] = useState(false);
 
-  const barber = dummyTeam.find((b) => b.id === id);
-  const detail = id ? dummyBarberDetails[id] : undefined;
+  const { data: salon } = useMySalon();
+  const { data: barber, isLoading, error } = useBarberDetail(id ?? '');
 
-  if (!barber) return null;
+  if (!barber) {
+    return (
+      <Screen>
+        <Row justify="center" style={{ paddingTop: 80 }}>
+          <T variant="body" color={t.color.textMuted}>{isLoading ? 'Loading…' : error ?? 'Barber not found.'}</T>
+        </Row>
+      </Screen>
+    );
+  }
 
-  const util = detail?.weekUtil ?? [60, 80, 70, 75, 85, 90, 0];
+  const util = barber.weekUtil.map((d) => d.pct);
   const BAR_MAX = 56; // max bar pixel height
 
   return (
@@ -45,11 +54,6 @@ export default function BarberDetail() {
             <T variant="subtitle" numberOfLines={1} style={{ flex: 1 }}>{barber.name}</T>
             {barber.isPro && <Badge variant="pro">PRO</Badge>}
           </Row>
-          {detail?.yearsExp !== undefined && (
-            <T variant="small" color={t.color.textMuted} style={{ marginTop: 4 }}>
-              {detail.yearsExp} yrs
-            </T>
-          )}
         </View>
       </Row>
 
@@ -69,7 +73,7 @@ export default function BarberDetail() {
           <Eyebrow color={t.color.goldWarm}>Assigned Salon</Eyebrow>
           <Row gap={6} style={{ marginTop: 5 }}>
             <MapPin size={14} color={t.color.gold} />
-            <T variant="label">{barber.salon}</T>
+            <T variant="label">{salon?.name}</T>
           </Row>
         </View>
         <Button variant="white" size="sm" onPress={() => setShowReassign(true)}>
@@ -86,12 +90,12 @@ export default function BarberDetail() {
       <Row gap={9} style={{ paddingHorizontal: t.spacing.xxl }}>
         <Card style={{ flex: 1, padding: t.spacing.md }}>
           <T variant="subtitle" numberOfLines={1} adjustsFontSizeToFit>
-            {formatMoney(detail?.weekRevenue ?? 0)}
+            {formatMoney(barber.weekRevenueTnd)}
           </T>
           <T variant="small" color={t.color.textMuted} style={{ marginTop: 2 }}>This week</T>
         </Card>
         <Card style={{ flex: 1, padding: t.spacing.md }}>
-          <T variant="subtitle">{detail?.weekCuts ?? 0}</T>
+          <T variant="subtitle">{barber.weekCuts}</T>
           <T variant="small" color={t.color.textMuted} style={{ marginTop: 2 }}>Cuts · wk</T>
         </Card>
       </Row>

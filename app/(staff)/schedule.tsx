@@ -1,37 +1,33 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, parseISO } from 'date-fns';
 import { useTheme } from '../../src/theme/ThemeProvider';
-import { useSchedule } from '../../src/hooks/staff/useSchedule';
+import { useSchedule, ScheduleSlotState } from '../../src/hooks/staff/useSchedule';
 import { formatMoney } from '../../src/utils/formatMoney';
-import { ScheduleSlotState } from '../../src/data/staff/schedule';
+import { salonDateKey, nowAsSalonTime } from '../../src/utils/salonTime';
 
-const TODAY = '2026-06-29';
+const TODAY = salonDateKey(nowAsSalonTime());
 
 function slotBorderColor(state: ScheduleSlotState, t: ReturnType<typeof useTheme>) {
   const map: Record<ScheduleSlotState, string> = {
     confirmed: t.color.gold,
-    pending:   t.color.pending,
-    open:      t.color.borderStrong,
-    blocked:   t.color.surfaceElevated,
+    completed: t.color.success,
+    cancelled: t.color.borderStrong,
   };
   return map[state];
-}
-
-function slotBg(state: ScheduleSlotState, t: ReturnType<typeof useTheme>) {
-  if (state === 'pending') return t.color.goldSoft;
-  if (state === 'open')    return 'transparent';
-  return t.color.surfaceCard;
 }
 
 export default function StaffSchedule() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { data } = useSchedule();
-  const { weekDates, slots } = data;
+  const { data, refresh } = useSchedule();
+  const { weekDates, slots, dayWindows } = data;
 
   const [selectedDate, setSelectedDate] = useState(TODAY);
+
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const daySlots = slots.filter((s) => s.date === selectedDate);
 
@@ -53,7 +49,7 @@ export default function StaffSchedule() {
           const parsed     = parseISO(d);
           const dayAbbr    = format(parsed, 'EEE').toUpperCase();
           const dayNum     = format(parsed, 'd');
-          const count      = slots.filter((s) => s.date === d && s.state !== 'open').length;
+          const count      = slots.filter((s) => s.date === d).length;
 
           return (
             <Pressable
@@ -92,7 +88,11 @@ export default function StaffSchedule() {
         contentContainerStyle={[styles.slotList, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        {daySlots.length === 0 ? (
+        {dayWindows[selectedDate] === null ? (
+          <View style={styles.emptyWrap}>
+            <Text style={[styles.emptyTxt, { color: t.color.textMuted }]}>Not working today.</Text>
+          </View>
+        ) : daySlots.length === 0 ? (
           <View style={styles.emptyWrap}>
             <Text style={[styles.emptyTxt, { color: t.color.textMuted }]}>No appointments for this day.</Text>
           </View>
@@ -100,33 +100,22 @@ export default function StaffSchedule() {
           daySlots.map((s) => (
             <View key={s.id} style={styles.slotRow}>
               <Text style={[styles.slotTime, { color: t.color.textMuted }]}>{s.startTime}</Text>
-              {s.state === 'open' ? (
-                <View style={[styles.openSlot, { borderColor: t.color.borderStrong }]}>
-                  <Text style={[styles.openSlotTxt, { color: t.color.textMuted }]}>Open · tap to block</Text>
+              <View
+                style={[
+                  styles.slotCard,
+                  {
+                    backgroundColor: t.color.surfaceCard,
+                    borderLeftColor: slotBorderColor(s.state, t),
+                  },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.slotClient, { color: t.color.textPrimary }]}>{s.clientName}</Text>
+                  <Text style={[styles.slotService, { color: t.color.textMuted }]}>
+                    {s.service} · {s.durationMin}m · {formatMoney(s.priceTnd)}
+                  </Text>
                 </View>
-              ) : (
-                <View
-                  style={[
-                    styles.slotCard,
-                    {
-                      backgroundColor: slotBg(s.state, t),
-                      borderLeftColor: slotBorderColor(s.state, t),
-                    },
-                  ]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.slotClient, { color: t.color.textPrimary }]}>{s.clientName}</Text>
-                    <Text style={[styles.slotService, { color: t.color.textMuted }]}>
-                      {s.service} · {s.durationMin}m · {formatMoney(s.priceTnd)}
-                    </Text>
-                  </View>
-                  {s.state === 'pending' && (
-                    <View style={[styles.pendingBadge, { borderColor: t.color.gold }]}>
-                      <Text style={[styles.pendingTxt, { color: t.color.gold }]}>PENDING</Text>
-                    </View>
-                  )}
-                </View>
-              )}
+              </View>
             </View>
           ))
         )}
@@ -154,10 +143,6 @@ const styles = StyleSheet.create({
   slotCard:     { flex: 1, borderLeftWidth: 3, borderRadius: 13, borderTopLeftRadius: 3, borderBottomLeftRadius: 3, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 8 },
   slotClient:   { fontSize: 13, fontWeight: '700' },
   slotService:  { fontSize: 11, fontWeight: '500', marginTop: 2 },
-  openSlot:     { flex: 1, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 13, padding: 13, alignItems: 'center' },
-  openSlotTxt:  { fontSize: 12, fontWeight: '600' },
-  pendingBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  pendingTxt:   { fontSize: 9, fontWeight: '800' },
 
   emptyWrap:    { alignItems: 'center', paddingTop: 48 },
   emptyTxt:     { fontSize: 14, fontWeight: '500' },

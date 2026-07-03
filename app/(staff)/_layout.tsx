@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { useRoleGuard } from '../../src/hooks/useRoleGuard';
 
 function TodayIcon({ color }: { color: string }) {
   return (
@@ -43,6 +44,7 @@ function ProfileIcon({ color }: { color: string }) {
 export default function StaffLayout() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  useRoleGuard('staff');
 
   return (
     <Tabs
@@ -70,6 +72,9 @@ export default function StaffLayout() {
       <Tabs.Screen name="earnings"    options={{ href: null }} />
       <Tabs.Screen name="appointment" options={{ href: null }} />
       <Tabs.Screen name="services"    options={{ href: null }} />
+      <Tabs.Screen name="settings"       options={{ href: null }} />
+      <Tabs.Screen name="personal-info"  options={{ href: null }} />
+      <Tabs.Screen name="change-password" options={{ href: null }} />
     </Tabs>
   );
 }

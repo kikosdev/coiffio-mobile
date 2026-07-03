@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, parse, differenceInCalendarDays } from 'date-fns';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -259,7 +259,8 @@ export default function AppointmentsScreen() {
   const insets = useSafeAreaInsets();
   const store = useAppointments();
   const user = useAuthStore((s) => s.user);
-  const [tab, setTab] = useState<'upcoming' | 'history'>('upcoming');
+  const { tab: initialTab } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<'upcoming' | 'history'>(initialTab === 'history' ? 'history' : 'upcoming');
   const [guestBookings, setGuestBookings] = useState<GuestBookingRef[]>([]);
   const [guestLoading, setGuestLoading] = useState(true);
 
@@ -268,6 +269,13 @@ export default function AppointmentsScreen() {
     store.fetchUpcoming();
     store.fetchHistory();
   }, [user]);
+
+  // Refetch on focus too — e.g. right after completing a booking and navigating back here.
+  useFocusEffect(useCallback(() => {
+    if (!user) return;
+    store.fetchUpcoming();
+    store.fetchHistory();
+  }, [user]));
 
   useEffect(() => {
     if (user) return;

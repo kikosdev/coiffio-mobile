@@ -15,6 +15,8 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider } from '../src/theme/ThemeProvider';
 import { useAuthStore } from '../src/stores/auth';
+import { useRoleStore } from '../src/state/role';
+import { mapBackendRoleToSurface } from '../src/features/auth/roleConfig';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -30,7 +32,12 @@ export default function RootLayout() {
   const hydrate = useAuthStore((s) => s.hydrate);
 
   useEffect(() => {
-    hydrate();
+    hydrate().then(() => {
+      // Restore the correct UI surface for a returning, still-authenticated user —
+      // hydrate() only resolves useAuthStore; nothing else keeps useRoleStore in sync.
+      const user = useAuthStore.getState().user;
+      if (user) useRoleStore.getState().setRole(mapBackendRoleToSurface(user.role));
+    });
   }, [hydrate]);
 
   useEffect(() => {
@@ -50,6 +57,7 @@ export default function RootLayout() {
             <Stack.Screen name="(client)" />
             <Stack.Screen name="(staff)" />
             <Stack.Screen name="(owner)" />
+            <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
           </Stack>
         </ThemeProvider>
       </SafeAreaProvider>

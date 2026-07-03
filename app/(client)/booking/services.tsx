@@ -79,7 +79,6 @@ export default function ServicesScreen() {
       .finally(() => setCatalogLoading(false));
   }, []);
 
-  const packActive = !!draft.pack;
   const canContinue = draft.services.length > 0;
 
   return (
@@ -104,18 +103,6 @@ export default function ServicesScreen() {
           {draft.services.length} selected{draft.barberName ? ` · ${draft.barberName}` : ''}
         </Text>
 
-        {/* Pack banner */}
-        {packActive && draft.pack && (
-          <View style={[styles.packBanner, { backgroundColor: t.color.goldSoft, borderColor: t.color.gold }]}>
-            <Text style={[styles.packBannerLabel, { color: t.color.gold }]}>
-              Pack · {draft.pack.name}  {formatMoney(draft.pack.price)}
-            </Text>
-            <Pressable onPress={() => draft.removePack()} hitSlop={8}>
-              <Text style={[styles.packRemoveText, { color: t.color.textMuted }]}>Remove</Text>
-            </Pressable>
-          </View>
-        )}
-
         {/* Service rows */}
         {draft.services.map((s) => (
           <View key={s.id} style={[styles.serviceRow, { backgroundColor: t.color.surfaceCard }]}>
@@ -131,26 +118,22 @@ export default function ServicesScreen() {
             <Text style={[styles.servicePrice, { color: t.color.textPrimary }]}>
               {formatMoney(s.price)}
             </Text>
-            {!packActive && (
-              <Pressable onPress={() => draft.removeService(s.id)} hitSlop={10}>
-                <Trash color={t.color.textMuted} />
-              </Pressable>
-            )}
+            <Pressable onPress={() => draft.removeService(s.id)} hitSlop={10}>
+              <Trash color={t.color.textMuted} />
+            </Pressable>
           </View>
         ))}
 
         {/* Add another service */}
-        {!packActive && (
-          <Pressable
-            style={[styles.addBtn, { borderColor: t.color.borderStrong }]}
-            onPress={() => setCatalogueOpen(true)}
-          >
-            <Plus color={t.color.textSecondary} />
-            <Text style={[styles.addBtnText, { color: t.color.textSecondary }]}>
-              Add another service
-            </Text>
-          </Pressable>
-        )}
+        <Pressable
+          style={[styles.addBtn, { borderColor: t.color.borderStrong }]}
+          onPress={() => setCatalogueOpen(true)}
+        >
+          <Plus color={t.color.textSecondary} />
+          <Text style={[styles.addBtnText, { color: t.color.textSecondary }]}>
+            Add another service
+          </Text>
+        </Pressable>
       </ScrollView>
 
       {/* ── Footer ── */}
@@ -252,10 +235,6 @@ const styles = StyleSheet.create({
   scrollContent:   { paddingHorizontal: 20, paddingTop: 4 },
   title:           { fontSize: 28, fontWeight: '700', marginTop: 14 },
   subtitle:        { fontSize: 13, fontWeight: '500', marginTop: 5, marginBottom: 18 },
-
-  packBanner:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 12 },
-  packBannerLabel: { fontSize: 13, fontWeight: '700' },
-  packRemoveText:  { fontSize: 12, fontWeight: '600' },
 
   serviceRow:      { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 16, padding: 14, marginTop: 10 },
   iconBox:         { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },

@@ -39,15 +39,6 @@ function WalletIcon({ color }: { color: string }) {
   );
 }
 
-function TagIcon({ color }: { color: string }) {
-  return (
-    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-      <Circle cx={7} cy={7} r={1.5} />
-    </Svg>
-  );
-}
-
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function PaymentScreen() {
@@ -56,19 +47,8 @@ export default function PaymentScreen() {
   const draft = useBookingDraft();
   const user = useAuthStore((s) => s.user);
 
-  const [promoInput, setPromoInput] = useState('');
-  const [promoError, setPromoError] = useState('');
-  const [promoSuccess, setPromoSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState('');
-
-  // Pre-fill from pendingPromoCode set by Offers screen
-  useEffect(() => {
-    if (draft.pendingPromoCode) {
-      setPromoInput(draft.pendingPromoCode);
-      draft.setPendingPromo('');
-    }
-  }, []);
 
   // Pre-fill contact details from the signed-in profile — still editable, still required.
   useEffect(() => {
@@ -82,18 +62,6 @@ export default function PaymentScreen() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
-
-  const handleApplyPromo = () => {
-    setPromoError('');
-    setPromoSuccess(false);
-    if (!promoInput.trim()) return;
-    const result = draft.applyPromo(promoInput);
-    if (result.ok) {
-      setPromoSuccess(true);
-    } else {
-      setPromoError(result.message ?? 'Invalid code');
-    }
-  };
 
   const contact = draft.contact;
   const contactValid =
@@ -226,26 +194,14 @@ export default function PaymentScreen() {
 
         {/* ── Recap ── */}
         <View style={[styles.recap, { backgroundColor: t.color.surfaceCard }]}>
-          {/* Services or Pack line */}
-          {draft.pack ? (
-            <View style={styles.recapRow}>
-              <Text style={[styles.recapLabel, { color: t.color.textSecondary }]}>
-                Pack · {draft.pack.name}
-              </Text>
-              <Text style={[styles.recapValue, { color: t.color.textPrimary }]}>
-                {formatMoney(subtotal)}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.recapRow}>
-              <Text style={[styles.recapLabel, { color: t.color.textSecondary }]}>
-                Services ({draft.services.length})
-              </Text>
-              <Text style={[styles.recapValue, { color: t.color.textPrimary }]}>
-                {formatMoney(subtotal)}
-              </Text>
-            </View>
-          )}
+          <View style={styles.recapRow}>
+            <Text style={[styles.recapLabel, { color: t.color.textSecondary }]}>
+              Services ({draft.services.length})
+            </Text>
+            <Text style={[styles.recapValue, { color: t.color.textPrimary }]}>
+              {formatMoney(subtotal)}
+            </Text>
+          </View>
 
           {/* Booking fee — hidden if 0 */}
           {fee > 0 && (
@@ -253,49 +209,6 @@ export default function PaymentScreen() {
               <Text style={[styles.recapLabel, { color: t.color.textSecondary }]}>Booking fee</Text>
               <Text style={[styles.recapValue, { color: t.color.textPrimary }]}>{formatMoney(fee)}</Text>
             </View>
-          )}
-
-          {/* Promo discount */}
-          {draft.promo && (
-            <View style={styles.recapRow}>
-              <Text style={[styles.recapLabel, { color: t.color.gold }]}>
-                Promo · {draft.promo.code}
-              </Text>
-              <Text style={[styles.recapValue, { color: t.color.gold }]}>
-                -{formatMoney(draft.promo.discount)}
-              </Text>
-            </View>
-          )}
-
-          <View style={[styles.divider, { backgroundColor: t.color.borderSubtle }]} />
-
-          {/* Promo input */}
-          <View style={styles.promoRow}>
-            <View style={[styles.promoInputWrap, { backgroundColor: t.color.surfaceElevated }]}>
-              <TagIcon color={t.color.textMuted} />
-              <TextInput
-                style={[styles.promoInput, { color: t.color.textPrimary }]}
-                value={promoInput}
-                onChangeText={(v) => { setPromoInput(v.toUpperCase()); setPromoError(''); setPromoSuccess(false); }}
-                placeholder="Promo code"
-                placeholderTextColor={t.color.textMuted}
-                autoCapitalize="characters"
-                returnKeyType="done"
-                onSubmitEditing={handleApplyPromo}
-              />
-            </View>
-            <Pressable
-              style={[styles.applyBtn, { backgroundColor: t.color.surfaceElevated }]}
-              onPress={handleApplyPromo}
-            >
-              <Text style={[styles.applyBtnText, { color: t.color.textPrimary }]}>Apply</Text>
-            </Pressable>
-          </View>
-          {promoError !== '' && (
-            <Text style={[styles.promoFeedback, { color: t.color.danger }]}>{promoError}</Text>
-          )}
-          {promoSuccess && (
-            <Text style={[styles.promoFeedback, { color: t.color.success }]}>Code applied!</Text>
           )}
         </View>
       </ScrollView>
@@ -367,12 +280,6 @@ const styles = StyleSheet.create({
   recapRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7 },
   recapLabel:     { fontSize: 13, fontWeight: '500' },
   recapValue:     { fontSize: 13, fontWeight: '700' },
-  divider:        { height: 1, marginVertical: 10 },
-  promoRow:       { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 4 },
-  promoInputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, height: 44 },
-  promoInput:     { flex: 1, fontSize: 14, fontWeight: '600', height: 44 },
-  applyBtn:       { borderRadius: 12, paddingHorizontal: 16, height: 44, alignItems: 'center', justifyContent: 'center' },
-  applyBtnText:   { fontSize: 13, fontWeight: '700' },
   promoFeedback:  { fontSize: 12, fontWeight: '600', marginTop: 6 },
 
   // Footer

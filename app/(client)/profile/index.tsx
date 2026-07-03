@@ -1,10 +1,14 @@
-import { Switch, Image } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image } from 'react-native';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
+import { ConfirmDialog } from '../../../src/components/kit';
 import { useProfile } from '../../../src/stores/profile';
+import { useAuthStore } from '../../../src/stores/auth';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -21,14 +25,6 @@ function PencilIcon({ color }: { color: string }) {
   return (
     <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-    </Svg>
-  );
-}
-
-function StarIcon({ color, size = 13 }: { color: string; size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <Path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6z" />
     </Svg>
   );
 }
@@ -57,19 +53,20 @@ function HeartIcon({ color }: { color: string }) {
   );
 }
 
-function BellIcon({ color }: { color: string }) {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-      <Path d="M13.7 21a2 2 0 0 1-3.4 0" />
-    </Svg>
-  );
-}
-
 function ChevronRight({ color }: { color: string }) {
   return (
     <Svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M9 6l6 6-6 6" />
+    </Svg>
+  );
+}
+
+function LogOutIcon({ color }: { color: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <Path d="M16 17l5-5-5-5" />
+      <Path d="M21 12H9" />
     </Svg>
   );
 }
@@ -80,15 +77,46 @@ export default function ProfileScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const profile = useProfile();
+  const logout = useAuthStore((s) => s.logout);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  useEffect(() => {
+    profile.fetchProfile();
+  }, []);
 
   const initials = profile.fullName.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+
+  // Local-only: picks a real photo from the device library, same as Personal Information's
+  // "Change photo" — there's no backend avatar storage yet, so it doesn't sync across devices.
+  const handleChangePhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Allow access to your photo library in Settings.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      profile.setAvatar(result.assets[0].uri);
+    }
+  };
+
+  const handleConfirmLogout = async () => {
+    setShowLogoutConfirm(false);
+    await logout();
+    router.replace('/');
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: t.color.bgBase }]}>
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Text style={[styles.wordmark, { color: t.color.textPrimary }]}>PROFILE</Text>
-        <Pressable hitSlop={12} onPress={() => Alert.alert('Settings', 'Language & logout coming soon.')}>
+        <Pressable hitSlop={12} onPress={() => router.push('/(client)/profile/settings')}>
           <GearIcon color={t.color.textPrimary} />
         </Pressable>
       </View>
@@ -100,7 +128,7 @@ export default function ProfileScreen() {
       >
         {/* ── Identity ── */}
         <View style={styles.identity}>
-          <View style={styles.avatarWrap}>
+          <Pressable style={styles.avatarWrap} onPress={handleChangePhoto}>
             {profile.avatarUri ? (
               <Image source={{ uri: profile.avatarUri }} style={[styles.avatar, { borderRadius: 44 }]} />
             ) : (
@@ -111,29 +139,19 @@ export default function ProfileScreen() {
             <View style={[styles.editBadge, { backgroundColor: t.color.gold, borderColor: t.color.bgBase }]}>
               <PencilIcon color={t.color.onGold} />
             </View>
-          </View>
+          </Pressable>
           <Text style={[styles.name, { color: t.color.textPrimary }]}>{profile.fullName}</Text>
-          <View style={[styles.tierPill, { backgroundColor: t.color.goldSoft, borderColor: t.color.borderStrong }]}>
-            <StarIcon color={t.color.gold} size={13} />
-            <Text style={[styles.tierText, { color: t.color.gold }]}>
-              {profile.tier === 'GOLD' ? 'GOLD MEMBER' : 'STANDARD MEMBER'}
-            </Text>
-          </View>
         </View>
 
         {/* ── Stats row ── */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: t.color.surfaceCard }]}>
-            <Text style={[styles.statValue, { color: t.color.textPrimary }]}>{profile.stats.visits}</Text>
+            <Text style={[styles.statValue, { color: t.color.textPrimary }]}>{profile.visits}</Text>
             <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Visits</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: t.color.surfaceCard }]}>
-            <Text style={[styles.statValue, { color: t.color.gold }]}>{profile.stats.points}</Text>
-            <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Points</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: t.color.surfaceCard }]}>
-            <Text style={[styles.statValue, { color: t.color.textPrimary }]}>{profile.stats.reviews}</Text>
-            <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Reviews</Text>
+            <Text style={[styles.statValue, { color: t.color.gold }]}>{profile.upcoming}</Text>
+            <Text style={[styles.statLabel, { color: t.color.textMuted }]}>Upcoming</Text>
           </View>
         </View>
 
@@ -174,22 +192,40 @@ export default function ProfileScreen() {
             <ChevronRight color={t.color.textMuted} />
           </Pressable>
 
-          {/* Notifications */}
-          <View style={[styles.menuRow, styles.menuDivider, { borderTopColor: t.color.borderSubtle }]}>
+          {/* Settings (update info, password, notifications, history) */}
+          <Pressable
+            style={({ pressed }) => [styles.menuRow, styles.menuDivider, { borderTopColor: t.color.borderSubtle, opacity: pressed ? 0.75 : 1 }]}
+            onPress={() => router.push('/(client)/profile/settings')}
+          >
             <View style={[styles.iconBox, { backgroundColor: t.color.surfaceInput }]}>
-              <BellIcon color={t.color.goldWarm} />
+              <GearIcon color={t.color.goldWarm} />
             </View>
-            <Text style={[styles.menuLabel, { color: t.color.textPrimary }]}>Notifications</Text>
-            <Switch
-              value={profile.notificationsEnabled}
-              onValueChange={profile.setNotificationsEnabled}
-              trackColor={{ false: t.color.surfaceElevated, true: t.color.gold }}
-              thumbColor={t.color.onGold}
-              ios_backgroundColor={t.color.surfaceElevated}
-            />
-          </View>
+            <Text style={[styles.menuLabel, { color: t.color.textPrimary }]}>Settings</Text>
+            <ChevronRight color={t.color.textMuted} />
+          </Pressable>
+
+          {/* Log out */}
+          <Pressable
+            style={({ pressed }) => [styles.menuRow, styles.menuDivider, { borderTopColor: t.color.borderSubtle, opacity: pressed ? 0.75 : 1 }]}
+            onPress={() => setShowLogoutConfirm(true)}
+          >
+            <View style={[styles.iconBox, { backgroundColor: t.color.surfaceInput }]}>
+              <LogOutIcon color={t.color.danger} />
+            </View>
+            <Text style={[styles.menuLabel, { color: t.color.danger }]}>Log out</Text>
+          </Pressable>
         </View>
       </ScrollView>
+
+      <ConfirmDialog
+        visible={showLogoutConfirm}
+        title="Log out?"
+        message="You can sign back in any time."
+        confirmLabel="Log out"
+        destructive
+        onConfirm={handleConfirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </View>
   );
 }

@@ -29,24 +29,7 @@ function validate(kind: string | undefined, field: string | undefined, value: st
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) return 'Enter a valid email address.';
   }
 
-  if (kind === 'phone') {
-    const digits = value.replace(/\D/g, '');
-    if (digits.length < 7) return 'Enter a valid phone number.';
-  }
-
-  if (field === 'username') {
-    if (!/^[a-z0-9._]+$/.test(value)) return 'Letters, numbers, dots and underscores only.';
-    if (value.length < 3) return 'Must be at least 3 characters.';
-  }
-
   return null;
-}
-
-function normalizePhone(raw: string): string {
-  const stripped = raw.replace(/\s/g, '');
-  if (stripped.startsWith('+')) return stripped;
-  if (stripped.startsWith('00')) return `+${stripped.slice(2)}`;
-  return `+216${stripped}`;
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -73,42 +56,24 @@ export default function EditFieldScreen() {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
 
+  const [saving, setSaving] = useState(false);
   const isChanged = value !== (initialValue ?? '');
   const liveError = validate(kind, field, value);
-  const canSave = isChanged && !liveError;
+  const canSave = isChanged && !liveError && !saving;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const err = validate(kind, field, value);
     if (err) { setError(err); return; }
 
-    if (kind === 'email') {
-      profile.requestEmailChange(value.trim());
-      Alert.alert(
-        'Verify your email',
-        'Check your inbox and tap the verification link to confirm your new address.',
-      );
+    setSaving(true);
+    try {
+      await profile.updateField(field as keyof ClientPersonal, value.trim());
       router.back();
-      return;
+    } catch {
+      setError('Could not save this change. Please try again.');
+    } finally {
+      setSaving(false);
     }
-
-    if (kind === 'phone') {
-      const normalized = normalizePhone(value);
-      profile.requestPhoneChange(normalized);
-      const result = profile.confirmPhoneOtp('auto-v1');
-      if (!result.ok && result.collision) {
-        Alert.alert(
-          'Number already in use',
-          'This phone number is linked to another account. Please use a different number.',
-        );
-        return;
-      }
-      Alert.alert('Phone updated', 'Your phone number has been verified and updated.');
-      router.back();
-      return;
-    }
-
-    profile.updateField(field as keyof ClientPersonal, value.trim());
-    router.back();
   };
 
   const handleClear = () => {

@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, StyleSheet, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, parseISO } from 'date-fns';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useDayCaisse } from '../../src/hooks/staff/useDayCaisse';
+import { useMyServices, StaffService } from '../../src/hooks/staff/useMyServices';
 import { formatMoney } from '../../src/utils/formatMoney';
-import { myServices } from '../../src/data/staff/services';
 
 function ChevronRight({ color }: { color: string }) {
   return (
@@ -36,15 +36,16 @@ function XIcon({ color }: { color: string }) {
 interface POSSheetProps {
   visible: boolean;
   onClose: () => void;
-  onRingUp: (service: string, amountTnd: number) => void;
+  services: StaffService[];
+  onRingUp: (serviceId: string, serviceName: string, amountTnd: number) => void;
 }
 
-function POSSheet({ visible, onClose, onRingUp }: POSSheetProps) {
+function POSSheet({ visible, onClose, services, onRingUp }: POSSheetProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const selected = myServices.find((s) => s.id === selectedId);
+  const selected = services.find((s) => s.id === selectedId);
 
   function handleEncaisser() {
     if (!selected) return;
@@ -56,7 +57,7 @@ function POSSheet({ visible, onClose, onRingUp }: POSSheetProps) {
         {
           text: 'Confirmer',
           onPress: () => {
-            onRingUp(selected.name, selected.priceTnd);
+            onRingUp(selected.id, selected.name, selected.priceTnd);
             setSelectedId(null);
             onClose();
           },
@@ -81,7 +82,7 @@ function POSSheet({ visible, onClose, onRingUp }: POSSheetProps) {
           {/* Service picker */}
           <Text style={[styles.sheetEyebrow, { color: t.color.textMuted }]}>CHOISIR UN SERVICE</Text>
           <View style={styles.sheetServices}>
-            {myServices.map((s) => {
+            {services.map((s) => {
               const picked = s.id === selectedId;
               return (
                 <Pressable
@@ -142,8 +143,11 @@ function POSSheet({ visible, onClose, onRingUp }: POSSheetProps) {
 export default function StaffCaisse() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, addSale } = useDayCaisse();
+  const { data, addSale, refresh } = useDayCaisse();
+  const { data: servicesData } = useMyServices();
   const [posVisible, setPosVisible] = useState(false);
+
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const { date, totalTnd, servicesTotalTnd, productsTotalTnd, cashTnd, entries } = data;
   const dateLabel = format(parseISO(date), 'EEEE, d MMMM');
@@ -226,7 +230,8 @@ export default function StaffCaisse() {
       <POSSheet
         visible={posVisible}
         onClose={() => setPosVisible(false)}
-        onRingUp={(service, amount) => addSale('Client', service, amount)}
+        services={servicesData.services}
+        onRingUp={(serviceId, serviceName, amount) => addSale(serviceId, serviceName, amount)}
       />
     </View>
   );

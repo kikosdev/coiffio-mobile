@@ -2,6 +2,16 @@ import { Role } from '../../theme/tokens';
 
 export type AuthRole = Role; // 'client' | 'staff' | 'owner'
 
+/** Backend account roles (`Staff.role` ∪ `'client'`) — distinct from the UI surface `Role`. */
+export type BackendRole = 'client' | 'owner' | 'manager' | 'stylist' | 'colorist';
+
+/** Maps a real backend account role to the UI surface it should land on. */
+export function mapBackendRoleToSurface(role: BackendRole): Role {
+  if (role === 'owner') return 'owner';
+  if (role === 'manager' || role === 'stylist' || role === 'colorist') return 'staff';
+  return 'client';
+}
+
 export interface RoleAuthConfig {
   label: string;
   emailLabel: string;

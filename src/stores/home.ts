@@ -24,6 +24,8 @@ export interface NearbySalon {
   distanceKm: number | null;
   rating: number | null;
   isOpen: boolean | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 interface HomeState {

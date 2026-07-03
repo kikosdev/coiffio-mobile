@@ -6,12 +6,13 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   format, addMonths, startOfMonth, getDaysInMonth,
-  getDay, startOfDay, isBefore,
+  getDay,
 } from 'date-fns';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
 import { fetchTimeline, type SlotOption, type TimelineDay } from '../../../src/api/booking';
+import { nowAsSalonTime, salonDateKey } from '../../../src/utils/salonTime';
 
 const WIN_W = Dimensions.get('window').width;
 const TIME_PILL_W = Math.floor((WIN_W - 40 - 20) / 3); // 3 columns, paddingH=20, gap=10×2
@@ -67,8 +68,8 @@ export default function DateTimeScreen() {
     }
   }, []);
 
-  const today = startOfDay(new Date());
-  const todayStr = format(today, 'yyyy-MM-dd');
+  // Salon-local "today", not the device's own timezone — matches the backend's convention.
+  const todayStr = salonDateKey(nowAsSalonTime());
   const displayMonth = addMonths(startOfMonth(new Date()), monthOffset);
   const year = displayMonth.getFullYear();
   const month = displayMonth.getMonth() + 1;
@@ -84,10 +85,11 @@ export default function DateTimeScreen() {
         setTimeline(data);
         // Skip straight to the first working day with a still-bookable slot — mainly saves
         // a tap on the barber-first path, where service + stylist are already both known.
+        const nowFake = nowAsSalonTime().getTime();
         const firstOpen = data.find((d) => {
           if (d.isClosed) return false;
           const slots = d.stylists.find((s) => s.stylistId === draft.barberId)?.slots ?? [];
-          return slots.some((s) => new Date(s.start).getTime() > Date.now());
+          return slots.some((s) => new Date(s.start).getTime() > nowFake);
         });
         setSelectedDate((prev) => prev ?? firstOpen?.date ?? null);
       })
@@ -99,9 +101,9 @@ export default function DateTimeScreen() {
 
   const slotsFor = (dateStr: string): SlotOption[] => {
     const slots = timelineByDate.get(dateStr)?.stylists.find((s) => s.stylistId === draft.barberId)?.slots ?? [];
-    // slot.start is an absolute ISO instant, so comparing it to "now" is correct regardless of
-    // timezone — no wall-clock math needed to hide today's already-passed times.
-    return slots.filter((s) => new Date(s.start).getTime() > Date.now());
+    // slot.start's UTC fields ARE the Tunis wall-clock time (backend convention) — compare
+    // against the same fake-UTC "now" (nowAsSalonTime), not Date.now().
+    return slots.filter((s) => new Date(s.start).getTime() > nowAsSalonTime().getTime());
   };
 
   // Calendar grid cells (null = blank spacer)
@@ -201,7 +203,7 @@ export default function DateTimeScreen() {
                 const dateStr = format(d, 'yyyy-MM-dd');
                 const isActive = selectedDate === dateStr;
                 const isToday = dateStr === todayStr;
-                const isPast = isBefore(d, today);
+                const isPast = dateStr < todayStr;
                 const dayInfo = timelineByDate.get(dateStr);
                 // Only a real day-off closes the cell — a day with zero remaining slots (fully
                 // booked) stays tappable so "No available slots" can show, same as a day-off's
