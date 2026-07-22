@@ -82,6 +82,26 @@ export function fetchTimeline(
   });
 }
 
+/**
+ * Stylist ids actually bookable for the selected services, derived from the unfiltered
+ * timeline (a rolling window, not just today — a stylist off today may still be eligible).
+ * Used to keep the "choose your stylist" list from offering someone who then shows zero
+ * slots on every day in datetime.tsx (capability/schedule filtering happens server-side,
+ * inside dayAvailability, not on the public team endpoint).
+ */
+export async function fetchAvailableStylistIds(
+  serviceIds: string[],
+  startDate: string,
+  days = 14,
+): Promise<Set<string>> {
+  const timeline = await fetchTimeline(serviceIds, startDate, undefined, days);
+  const ids = new Set<string>();
+  for (const day of timeline) {
+    for (const s of day.stylists) ids.add(s.stylistId);
+  }
+  return ids;
+}
+
 export interface CreateAppointmentDto {
   serviceIds: string[];
   stylistId: string;

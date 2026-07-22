@@ -50,7 +50,7 @@ function stateLabel(state: TodayState) {
 export default function StaffToday() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, advanceState, refresh } = useTodayBoard();
+  const { data, error, advanceState, refresh } = useTodayBoard();
   const { unreadCount } = useNotifications();
   const user = useAuthStore((s) => s.user);
 
@@ -99,6 +99,16 @@ export default function StaffToday() {
           )}
         </Pressable>
       </View>
+
+      {error ? (
+        <Pressable
+          style={[styles.errorBanner, { backgroundColor: t.color.surfaceCard, borderColor: t.color.gold }]}
+          onPress={() => refresh()}
+        >
+          <Text style={[styles.errorText, { color: t.color.textPrimary }]}>{error}</Text>
+          <Text style={[styles.errorRetry, { color: t.color.gold }]}>Tap to retry</Text>
+        </Pressable>
+      ) : null}
 
       <ScrollView
         style={{ flex: 1 }}
@@ -245,6 +255,10 @@ const styles = StyleSheet.create({
   staffName:      { fontSize: 16, fontWeight: '800' },
   bellWrap:       { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   bellDot:        { position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, borderWidth: 2 },
+
+  errorBanner:    { marginHorizontal: 22, marginBottom: 10, borderRadius: 14, borderWidth: 1, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  errorText:      { fontSize: 12, fontWeight: '600', flex: 1, paddingRight: 8 },
+  errorRetry:     { fontSize: 12, fontWeight: '800' },
 
   heroCard:       { marginHorizontal: 22, marginTop: 14, borderRadius: 24, padding: 18, overflow: 'hidden' },
   heroCircle:     { position: 'absolute', right: -15, bottom: -25, width: 120, height: 120, borderRadius: 60 },

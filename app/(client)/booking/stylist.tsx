@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
-import { fetchBookableStylists, type PublicStylist } from '../../../src/api/booking';
+import { fetchBookableStylists, fetchAvailableStylistIds, type PublicStylist } from '../../../src/api/booking';
+import { nowAsSalonTime, salonDateKey } from '../../../src/utils/salonTime';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -44,14 +45,35 @@ export default function StylistScreen() {
 
   const [team, setTeam] = useState<PublicStylist[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(draft.barberId);
 
+  const serviceIds = useMemo(() => draft.services.map((s) => s.id), [draft.services]);
+
   useEffect(() => {
-    fetchBookableStylists()
-      .then(setTeam)
-      .catch(() => setTeam([]))
-      .finally(() => setLoading(false));
+    if (serviceIds.length === 0) {
+      router.replace('/(client)/booking/services');
+    }
   }, []);
+
+  useEffect(() => {
+    if (serviceIds.length === 0) return;
+    setLoading(true);
+    setLoadError(false);
+    const todayStr = salonDateKey(nowAsSalonTime());
+    // Only list stylists the timeline actually deems capable/scheduled for these services —
+    // showing anyone else here dead-ends the flow with "No available slots" on every day.
+    Promise.all([
+      fetchBookableStylists(),
+      fetchAvailableStylistIds(serviceIds, todayStr, 14),
+    ])
+      .then(([all, eligibleIds]) => setTeam(all.filter((s) => eligibleIds.has(s.id))))
+      // A failed request is NOT the same state as "no stylists eligible" — conflating them
+      // hides real outages behind a dead-end empty list.
+      .catch(() => { setTeam([]); setLoadError(true); })
+      .finally(() => setLoading(false));
+  }, [serviceIds.join(','), retryTick]);
 
   const canContinue = !!selectedId;
 
@@ -85,8 +107,17 @@ export default function StylistScreen() {
 
         {loading ? (
           <Text style={[styles.empty, { color: t.color.textMuted }]}>Loading…</Text>
+        ) : loadError ? (
+          <View>
+            <Text style={[styles.empty, { color: t.color.textMuted }]}>
+              Couldn't load stylists. Check your connection and try again.
+            </Text>
+            <Pressable onPress={() => setRetryTick((n) => n + 1)} hitSlop={8}>
+              <Text style={[styles.empty, { color: t.color.gold, fontWeight: '700' }]}>Retry</Text>
+            </Pressable>
+          </View>
         ) : team.length === 0 ? (
-          <Text style={[styles.empty, { color: t.color.textMuted }]}>No stylists available right now.</Text>
+          <Text style={[styles.empty, { color: t.color.textMuted }]}>No stylists available for these services right now.</Text>
         ) : (
           team.map((s) => {
             const isActive = selectedId === s.id;

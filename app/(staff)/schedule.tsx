@@ -22,7 +22,7 @@ function slotBorderColor(state: ScheduleSlotState, t: ReturnType<typeof useTheme
 export default function StaffSchedule() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, refresh } = useSchedule();
+  const { data, error, refresh } = useSchedule();
   const { weekDates, slots, dayWindows } = data;
 
   const [selectedDate, setSelectedDate] = useState(TODAY);
@@ -40,6 +40,16 @@ export default function StaffSchedule() {
           {format(parseISO(selectedDate), 'EEEE, d MMMM')}
         </Text>
       </View>
+
+      {error ? (
+        <Pressable
+          style={[styles.errorBanner, { backgroundColor: t.color.surfaceCard, borderColor: t.color.gold }]}
+          onPress={() => refresh()}
+        >
+          <Text style={[styles.errorText, { color: t.color.textPrimary }]}>{error}</Text>
+          <Text style={[styles.errorRetry, { color: t.color.gold }]}>Tap to retry</Text>
+        </Pressable>
+      ) : null}
 
       {/* ── Week strip ── */}
       <View style={styles.weekStripRow}>
@@ -129,6 +139,10 @@ const styles = StyleSheet.create({
   header:       { paddingHorizontal: 22, paddingBottom: 8 },
   title:        { fontSize: 27, fontWeight: '800' },
   subtitle:     { fontSize: 13, fontWeight: '500', marginTop: 2 },
+
+  errorBanner:  { marginHorizontal: 22, marginTop: 8, borderRadius: 14, borderWidth: 1, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  errorText:    { fontSize: 12, fontWeight: '600', flex: 1, paddingRight: 8 },
+  errorRetry:   { fontSize: 12, fontWeight: '800' },
 
   weekStripRow: { flexDirection: 'row', paddingHorizontal: 22, gap: 8, paddingTop: 6, marginBottom: 20 },
   dayCell:      { height: 68, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, minWidth: 52 },

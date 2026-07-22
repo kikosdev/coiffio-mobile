@@ -59,6 +59,8 @@ export default function DateTimeScreen() {
   const [selectedSlot, setSelectedSlot] = useState<SlotOption | null>(null);
   const [timeline, setTimeline] = useState<TimelineDay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   const serviceIds = useMemo(() => draft.services.map((s) => s.id), [draft.services]);
 
@@ -80,6 +82,7 @@ export default function DateTimeScreen() {
   useEffect(() => {
     if (!draft.barberId || serviceIds.length === 0) return;
     setLoading(true);
+    setLoadError(false);
     fetchTimeline(serviceIds, monthStart, draft.barberId, daysCount)
       .then((data) => {
         setTimeline(data);
@@ -93,9 +96,11 @@ export default function DateTimeScreen() {
         });
         setSelectedDate((prev) => prev ?? firstOpen?.date ?? null);
       })
-      .catch(() => setTimeline([]))
+      // A failed request (network/timeout/parse) is NOT the same state as a legitimately
+      // empty day — conflating them here silently hides real outages behind "no slots".
+      .catch(() => { setTimeline([]); setLoadError(true); })
       .finally(() => setLoading(false));
-  }, [monthStart, daysCount, draft.barberId, serviceIds.join(',')]);
+  }, [monthStart, daysCount, draft.barberId, serviceIds.join(','), retryTick]);
 
   const timelineByDate = useMemo(() => new Map(timeline.map((d) => [d.date, d])), [timeline]);
 
@@ -243,6 +248,15 @@ export default function DateTimeScreen() {
 
         {loading ? (
           <Text style={[styles.noSlots, { color: t.color.textMuted }]}>Searching availability…</Text>
+        ) : loadError ? (
+          <View>
+            <Text style={[styles.noSlots, { color: t.color.textMuted }]}>
+              Couldn't load availability. Check your connection and try again.
+            </Text>
+            <Pressable onPress={() => setRetryTick((n) => n + 1)} hitSlop={8} style={{ marginTop: 8 }}>
+              <Text style={[styles.noSlots, { color: t.color.gold, fontWeight: '700' }]}>Retry</Text>
+            </Pressable>
+          </View>
         ) : timeSlots.length === 0 ? (
           <Text style={[styles.noSlots, { color: t.color.textMuted }]}>
             {selectedDate ? 'No available slots for this day' : 'Select a date above'}
