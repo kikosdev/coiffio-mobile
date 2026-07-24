@@ -27,6 +27,15 @@ function CalendarIcon({ color }: { color: ColorValue }) {
   );
 }
 
+function TagIcon({ color }: { color: ColorValue }) {
+  return (
+    <Svg width={23} height={23} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <Circle cx={7} cy={7} r={1.5} />
+    </Svg>
+  );
+}
+
 function UserIcon({ color }: { color: ColorValue }) {
   return (
     <Svg width={23} height={23} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -59,6 +68,7 @@ export default function ClientLayout() {
       <Tabs.Screen name="home"         options={{ title: 'Home',         tabBarIcon: ({ color }) => <HomeIcon color={color} /> }} />
       <Tabs.Screen name="search"       options={{ title: 'Search',       tabBarIcon: ({ color }) => <SearchIcon color={color} /> }} />
       <Tabs.Screen name="appointments" options={{ title: 'Bookings',     tabBarIcon: ({ color }) => <CalendarIcon color={color} /> }} />
+      <Tabs.Screen name="offers"       options={{ title: 'Offers',       tabBarIcon: ({ color }) => <TagIcon color={color} /> }} />
       <Tabs.Screen name="profile"      options={{ title: 'Profile',      tabBarIcon: ({ color }) => <UserIcon color={color} /> }} />
       <Tabs.Screen name="choose-location" options={{ href: null }} />
       <Tabs.Screen name="salon"        options={{ href: null }} />
