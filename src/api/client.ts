@@ -2,7 +2,8 @@
 // Base URL from EXPO_PUBLIC_API_URL, falls back to the deployed backend.
 
 const FALLBACK_API_URL = 'https://coif-backend.onrender.com/api';
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? FALLBACK_API_URL;
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? FALLBACK_API_URL;
+export const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
 
 if (!process.env.EXPO_PUBLIC_API_URL) {
   // Visible in dev and in `adb logcat` — flags a build where EXPO_PUBLIC_API_URL
@@ -35,7 +36,7 @@ async function request<T>(
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  const url = `${BASE_URL}${path}`;
+  const url = `${API_BASE_URL}${path}`;
   if (__DEV__) console.log(`[api] → ${method} ${url}`);
 
   const controller = new AbortController();

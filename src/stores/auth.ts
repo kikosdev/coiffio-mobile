@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { api, setAuthToken, ApiError } from '../api/client';
 import { BackendRole } from '../features/auth/roleConfig';
 
-const TOKEN_KEY = 'auth_token';
+export const TOKEN_KEY = 'auth_token';
 
 export interface AuthUser {
   id: string;

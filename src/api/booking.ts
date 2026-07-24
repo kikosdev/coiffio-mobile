@@ -106,9 +106,10 @@ export interface CreateAppointmentDto {
   serviceIds: string[];
   stylistId: string;
   start: string; // ISO
+  clientId?: string;
   clientName: string;
   clientPhone: string;
-  clientEmail: string;
+  clientEmail?: string;
   source?: 'online';
 }
 
@@ -125,6 +126,7 @@ export interface BookedAppointment {
   status: AppointmentStatus;
   source: 'online' | 'walkin' | 'phone';
   price: number;
+  checkInCode?: string;
   /** Signed tracking/cancel link (Décision #12) — present on online bookings. */
   manageToken?: string;
 }

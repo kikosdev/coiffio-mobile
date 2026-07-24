@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, parseISO } from 'date-fns';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useSchedule, ScheduleSlotState } from '../../src/hooks/staff/useSchedule';
+import { useAppointmentRealtime } from '../../src/hooks/useAppointmentRealtime';
 import { formatMoney } from '../../src/utils/formatMoney';
 import { salonDateKey, nowAsSalonTime } from '../../src/utils/salonTime';
 
@@ -28,6 +29,7 @@ export default function StaffSchedule() {
   const [selectedDate, setSelectedDate] = useState(TODAY);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+  useAppointmentRealtime(useCallback(() => { refresh(); }, [refresh]));
 
   const daySlots = slots.filter((s) => s.date === selectedDate);
 

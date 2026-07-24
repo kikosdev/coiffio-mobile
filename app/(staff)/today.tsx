@@ -8,6 +8,7 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useTodayBoard, TodayState } from '../../src/hooks/staff/useTodayBoard';
 import { useNotifications } from '../../src/hooks/useNotifications';
+import { useAppointmentRealtime } from '../../src/hooks/useAppointmentRealtime';
 import { useAuthStore } from '../../src/stores/auth';
 import { formatMoney } from '../../src/utils/formatMoney';
 
@@ -51,12 +52,16 @@ export default function StaffToday() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { data, error, advanceState, refresh } = useTodayBoard();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, refresh: refreshNotifications } = useNotifications();
   const user = useAuthStore((s) => s.user);
 
   // Refetch whenever this tab regains focus, so a booking made elsewhere shows up
   // without needing an app restart.
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+  useAppointmentRealtime(useCallback(() => {
+    refresh();
+    refreshNotifications();
+  }, [refresh, refreshNotifications]));
 
   const { date, appointments } = data;
   const done      = appointments.filter((a) => a.state === 'done');

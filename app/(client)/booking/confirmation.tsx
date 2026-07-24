@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
+import { useAppointments } from '../../../src/stores/appointments';
 import { useAuthStore } from '../../../src/stores/auth';
 import { saveGuestBooking } from '../../../src/storage/guestBookings';
 import { formatSalonDate, formatSalonTime } from '../../../src/utils/salonTime';
@@ -39,6 +40,11 @@ function ClockIcon({ color }: { color: string }) {
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
+function fallbackBookingCode(id: string): string {
+  const numeric = parseInt(id.slice(-6), 16) % 1000;
+  return `B${String(numeric).padStart(3, '0')}`;
+}
+
 export default function ConfirmationScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -48,7 +54,7 @@ export default function ConfirmationScreen() {
 
   const serviceNames = draft.services.map((s) => s.name);
 
-  const bookingRef = result ? `#${result._id.slice(-8).toUpperCase()}` : '—';
+  const bookingRef = result ? result.checkInCode ?? fallbackBookingCode(result._id) : '—';
   const dateLabel = result ? formatSalonDate(result.start) : '—';
   const timeLabel = result ? formatSalonTime(result.start) : '—';
   const amountDue = result ? result.price : draft.total();
@@ -67,6 +73,11 @@ export default function ConfirmationScreen() {
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result?._id]);
+
+  useEffect(() => {
+    if (!user || !result) return;
+    useAppointments.getState().fetchUpcoming().catch(() => {});
+  }, [result?._id, user]);
 
   const handleAddToCalendar = () => {
     // V1 stub — replace with expo-calendar when installed
@@ -138,13 +149,13 @@ export default function ConfirmationScreen() {
         {/* ── Ref pill ── */}
         <View style={[styles.refPill, { backgroundColor: t.color.surfaceElevated }]}>
           <Text style={[styles.refText, { color: t.color.textSecondary }]}>
-            {bookingRef}  ·  show this on arrival
+            {bookingRef}  ·  show this to your barber
           </Text>
         </View>
 
         {!user && result?.manageToken && (
           <Text style={[styles.trackingNote, { color: t.color.textMuted }]}>
-            A tracking link has been sent to your email to manage this booking.
+            Keep this code to manage or cancel this booking from this device.
           </Text>
         )}
 

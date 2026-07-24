@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
 import { useAuthStore } from '../../../src/stores/auth';
@@ -30,15 +30,6 @@ function MoreHorizontal({ color }: { color: string }) {
   );
 }
 
-function WalletIcon({ color }: { color: string }) {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M20 12V8a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4" />
-      <Path d="M16 12h4v4h-4a2 2 0 0 1 0-4z" />
-    </Svg>
-  );
-}
-
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function PaymentScreen() {
@@ -52,12 +43,11 @@ export default function PaymentScreen() {
 
   // Pre-fill contact details from the signed-in profile — still editable, still required.
   useEffect(() => {
-    if (!user || draft.contact.firstName || draft.contact.email) return;
+    if (!user || draft.contact.firstName || draft.contact.phone) return;
     const parts = (user.name ?? '').trim().split(' ');
     draft.setContact({
       firstName: parts[0] ?? '',
       lastName: parts.slice(1).join(' '),
-      email: user.email ?? '',
       phone: user.phone ?? '',
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,8 +57,7 @@ export default function PaymentScreen() {
   const contactValid =
     contact.firstName.trim() !== '' &&
     contact.lastName.trim() !== '' &&
-    contact.phone.trim() !== '' &&
-    /\S+@\S+\.\S+/.test(contact.email);
+    contact.phone.trim() !== '';
   const canSubmit = contactValid && !!draft.barberId && !!draft.slotStartISO && draft.services.length > 0;
 
   const handleConfirmBooking = async () => {
@@ -82,9 +71,9 @@ export default function PaymentScreen() {
         serviceIds: draft.services.map((s) => s.id),
         stylistId: draft.barberId,
         start: draft.slotStartISO,
+        ...(user?.role === 'client' && user.clientId ? { clientId: user.clientId } : {}),
         clientName: `${contact.firstName} ${contact.lastName}`.trim(),
         clientPhone: contact.phone,
-        clientEmail: contact.email,
         source: 'online',
       });
       draft.setResult(appt);
@@ -146,49 +135,28 @@ export default function PaymentScreen() {
             placeholderTextColor={t.color.textMuted}
             keyboardType="phone-pad"
           />
-          <TextInput
-            style={[styles.detailsInput, { backgroundColor: t.color.surfaceElevated, color: t.color.textPrimary }]}
-            value={contact.email}
-            onChangeText={(v) => draft.setContact({ email: v })}
-            placeholder="Email"
-            placeholderTextColor={t.color.textMuted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
         </View>
 
-        {/* ── Method toggle ── */}
-        <View style={styles.methodRow}>
-          {/* Cash — active */}
-          <View style={[styles.methodPill, styles.methodActive, { backgroundColor: t.color.textPrimary }]}>
-            <Text style={[styles.methodText, { color: t.color.bgBase }]}>Cash</Text>
+        {/* ── Booking details ── */}
+        <View style={[styles.recap, { backgroundColor: t.color.surfaceCard }]}>
+          <Text style={[styles.detailsTitle, { color: t.color.textPrimary }]}>Booking details</Text>
+          <View style={styles.recapRow}>
+            <Text style={[styles.recapLabel, { color: t.color.textSecondary }]}>Salon</Text>
+            <Text style={[styles.recapValue, { color: t.color.textPrimary }]}>{draft.salonName || 'Salon'}</Text>
           </View>
-          {/* Bank card — disabled */}
-          <View style={[styles.methodPill, { backgroundColor: t.color.surfaceElevated, opacity: 0.45 }]}>
-            <Text style={[styles.methodText, { color: t.color.textSecondary }]}>Bank Card</Text>
-            <View style={[styles.soonChip, { backgroundColor: t.color.borderStrong }]}>
-              <Text style={[styles.soonText, { color: t.color.textMuted }]}>Soon</Text>
-            </View>
+          <View style={styles.recapRow}>
+            <Text style={[styles.recapLabel, { color: t.color.textSecondary }]}>Barber</Text>
+            <Text style={[styles.recapValue, { color: t.color.textPrimary }]}>{draft.barberName || 'Barber'}</Text>
           </View>
-          {/* Apple Pay — disabled */}
-          <View style={[styles.methodPill, { backgroundColor: t.color.surfaceElevated, opacity: 0.45 }]}>
-            <Text style={[styles.methodText, { color: t.color.textSecondary }]}>Apple Pay</Text>
-            <View style={[styles.soonChip, { backgroundColor: t.color.borderStrong }]}>
-              <Text style={[styles.soonText, { color: t.color.textMuted }]}>Soon</Text>
-            </View>
+          <View style={styles.recapRow}>
+            <Text style={[styles.recapLabel, { color: t.color.textSecondary }]}>Date & time</Text>
+            <Text style={[styles.recapValue, { color: t.color.textPrimary }]}>
+              {draft.date ?? '-'} · {draft.time ?? '-'}
+            </Text>
           </View>
-        </View>
-
-        {/* ── Cash info card ── */}
-        <View style={[styles.infoCard, { backgroundColor: t.color.surfaceCard }]}>
-          <View style={styles.infoRow}>
-            <WalletIcon color={t.color.gold} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.infoTitle, { color: t.color.textPrimary }]}>Payment in cash at the salon</Text>
-              <Text style={[styles.infoBody, { color: t.color.textMuted }]}>
-                Your booking is confirmed instantly. Pay {formatMoney(total)} on arrival.
-              </Text>
-            </View>
+          <View style={styles.recapRow}>
+            <Text style={[styles.recapLabel, { color: t.color.textSecondary }]}>Payment</Text>
+            <Text style={[styles.recapValue, { color: t.color.textPrimary }]}>Cash at salon</Text>
           </View>
         </View>
 
