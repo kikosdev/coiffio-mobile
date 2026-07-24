@@ -33,6 +33,7 @@ interface RawAppointment {
   end: string;
   price: number;
   status: RawStatus;
+  checkInCode?: string | null;
 }
 
 // AP-1 : le statut stocké n'est jamais "pending" — c'est un label dérivé (position dans la
@@ -59,7 +60,7 @@ function transform(raw: RawAppointment, context: 'upcoming' | 'history'): Appoin
     status: mapStatus(raw.status, context),
     paymentMethod: 'cash',
     amountDue: raw.price,
-    checkInCode: raw.id,
+    checkInCode: raw.checkInCode ?? raw.id,
   };
 }
 
