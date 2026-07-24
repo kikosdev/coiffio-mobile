@@ -5,8 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
-import { fetchBookableStylists, fetchAvailableStylistIds, type PublicStylist } from '../../../src/api/booking';
-import { nowAsSalonTime, salonDateKey } from '../../../src/utils/salonTime';
+import { fetchBookableStylists, type PublicStylist } from '../../../src/api/booking';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -61,14 +60,8 @@ export default function StylistScreen() {
     if (serviceIds.length === 0) return;
     setLoading(true);
     setLoadError(false);
-    const todayStr = salonDateKey(nowAsSalonTime());
-    // Only list stylists the timeline actually deems capable/scheduled for these services —
-    // showing anyone else here dead-ends the flow with "No available slots" on every day.
-    Promise.all([
-      fetchBookableStylists(),
-      fetchAvailableStylistIds(serviceIds, todayStr, 14),
-    ])
-      .then(([all, eligibleIds]) => setTeam(all.filter((s) => eligibleIds.has(s.id))))
+    fetchBookableStylists()
+      .then(setTeam)
       // A failed request is NOT the same state as "no stylists eligible" — conflating them
       // hides real outages behind a dead-end empty list.
       .catch(() => { setTeam([]); setLoadError(true); })

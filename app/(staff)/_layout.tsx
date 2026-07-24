@@ -1,31 +1,32 @@
 import { Tabs } from 'expo-router';
+import type { ColorValue } from 'react-native';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useRoleGuard } from '../../src/hooks/useRoleGuard';
 
-function TodayIcon({ color }: { color: string }) {
+function TodayIcon({ color }: { color: ColorValue }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M3 11l9-7 9 7" /><Path d="M5 10v9h14v-9" />
     </Svg>
   );
 }
-function ScheduleIcon({ color }: { color: string }) {
+function ScheduleIcon({ color }: { color: ColorValue }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Rect x={3} y={5} width={18} height={16} rx={3} /><Path d="M3 10h18M8 3v4M16 3v4" />
     </Svg>
   );
 }
-function CaisseIcon({ color }: { color: string }) {
+function CaisseIcon({ color }: { color: ColorValue }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M5 20V11M12 20V4M19 20v-6" />
     </Svg>
   );
 }
-function ClientsIcon({ color }: { color: string }) {
+function ClientsIcon({ color }: { color: ColorValue }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Circle cx={9} cy={8} r={3.2} /><Path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5" />
@@ -33,7 +34,7 @@ function ClientsIcon({ color }: { color: string }) {
     </Svg>
   );
 }
-function ProfileIcon({ color }: { color: string }) {
+function ProfileIcon({ color }: { color: ColorValue }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Circle cx={12} cy={8} r={4} /><Path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
@@ -50,6 +51,7 @@ export default function StaffLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        sceneStyle: { backgroundColor: t.color.bgBase },
         tabBarStyle: {
           backgroundColor: t.color.tabBar,
           borderTopColor: t.color.tabBorder,

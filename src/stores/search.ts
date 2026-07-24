@@ -17,6 +17,7 @@ export interface ServiceHit {
 export interface PublicBarber {
   staffId: string;
   salonId: string;
+  salonName?: string;
   name: string;
   title: string;
   isPro: boolean;

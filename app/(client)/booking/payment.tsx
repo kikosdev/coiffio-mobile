@@ -56,7 +56,6 @@ export default function PaymentScreen() {
   const contact = draft.contact;
   const contactValid =
     contact.firstName.trim() !== '' &&
-    contact.lastName.trim() !== '' &&
     contact.phone.trim() !== '';
   const canSubmit = contactValid && !!draft.barberId && !!draft.slotStartISO && draft.services.length > 0;
 
@@ -122,7 +121,7 @@ export default function PaymentScreen() {
               style={[styles.detailsInput, { flex: 1, backgroundColor: t.color.surfaceElevated, color: t.color.textPrimary }]}
               value={contact.lastName}
               onChangeText={(v) => draft.setContact({ lastName: v })}
-              placeholder="Last name"
+              placeholder="Last name (optional)"
               placeholderTextColor={t.color.textMuted}
             />
           </View>

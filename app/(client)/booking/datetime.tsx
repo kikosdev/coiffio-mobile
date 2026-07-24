@@ -16,6 +16,7 @@ import { nowAsSalonTime, salonDateKey } from '../../../src/utils/salonTime';
 
 const WIN_W = Dimensions.get('window').width;
 const TIME_PILL_W = Math.floor((WIN_W - 40 - 20) / 3); // 3 columns, paddingH=20, gap=10×2
+const AVAILABILITY_WINDOW_DAYS = 10;
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -78,12 +79,13 @@ export default function DateTimeScreen() {
   const monthLabel = format(displayMonth, 'MMMM yyyy');
   const daysCount = getDaysInMonth(displayMonth);
   const monthStart = format(displayMonth, 'yyyy-MM-dd');
+  const availabilityStart = monthOffset === 0 ? todayStr : monthStart;
 
   useEffect(() => {
     if (!draft.barberId || serviceIds.length === 0) return;
     setLoading(true);
     setLoadError(false);
-    fetchTimeline(serviceIds, monthStart, draft.barberId, daysCount)
+    fetchTimeline(serviceIds, availabilityStart, draft.barberId, AVAILABILITY_WINDOW_DAYS)
       .then((data) => {
         setTimeline(data);
         // Skip straight to the first working day with a still-bookable slot — mainly saves
@@ -100,7 +102,7 @@ export default function DateTimeScreen() {
       // empty day — conflating them here silently hides real outages behind "no slots".
       .catch(() => { setTimeline([]); setLoadError(true); })
       .finally(() => setLoading(false));
-  }, [monthStart, daysCount, draft.barberId, serviceIds.join(','), retryTick]);
+  }, [availabilityStart, draft.barberId, serviceIds.join(','), retryTick]);
 
   const timelineByDate = useMemo(() => new Map(timeline.map((d) => [d.date, d])), [timeline]);
 

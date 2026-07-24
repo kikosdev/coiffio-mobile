@@ -18,6 +18,8 @@ import { useAuthStore } from '../src/stores/auth';
 import { useRoleStore } from '../src/state/role';
 import { mapBackendRoleToSurface } from '../src/features/auth/roleConfig';
 
+const APP_BG = '#0E0E0E';
+
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -47,11 +49,11 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: APP_BG }}>
       <SafeAreaProvider>
         <ThemeProvider>
           <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+          <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: APP_BG } }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(client)" />

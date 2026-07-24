@@ -255,6 +255,7 @@ export default function ClientSearch() {
                         {b.isPro && <Badge variant="pro">PRO</Badge>}
                       </Row>
                       {!!b.title && <T variant="small" style={{ marginTop: 2 }}>{b.title}</T>}
+                      {!!b.salonName && <T variant="small" style={{ marginTop: 2 }}>{b.salonName}</T>}
                       {/* PAS d'étoile / note — aucune source en base (A3) */}
                     </View>
                   </Row>

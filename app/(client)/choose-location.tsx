@@ -29,6 +29,9 @@ function buildLeafletHtml(gold: string, bg: string) {
   html,body,#map{width:100%;height:100%;background:${bg};}
   .leaflet-control-attribution{font-size:9px;background:rgba(0,0,0,0.5)!important;color:#888!important;}
   .leaflet-control-attribution a{color:#888!important;}
+  .pin{width:18px;height:18px;border-radius:50%;box-shadow:0 0 0 3px rgba(0,0,0,.55),0 6px 16px rgba(0,0,0,.4);}
+  .pin.user{background:${gold};border:3px solid #fff;}
+  .pin.salon{background:#161616;border:3px solid ${gold};}
 </style>
 </head>
 <body>
@@ -44,26 +47,30 @@ function buildLeafletHtml(gold: string, bg: string) {
 
   var userMarker = null;
   var salonMarkers = [];
+  var userIcon = L.divIcon({ className: '', html: '<div class="pin user"></div>', iconSize: [18,18], iconAnchor: [9,9] });
+  var salonIcon = L.divIcon({ className: '', html: '<div class="pin salon"></div>', iconSize: [18,18], iconAnchor: [9,9] });
 
   window.__setData = function(data) {
+    var bounds = [];
     if (data.user) {
       if (userMarker) userMarker.remove();
-      userMarker = L.circleMarker([data.user.lat, data.user.lng], {
-        radius: 9, color: '${gold}', fillColor: '${gold}', fillOpacity: 1, weight: 2
-      }).addTo(map);
-      map.setView([data.user.lat, data.user.lng], 14);
+      var userLatLng = [data.user.lat, data.user.lng];
+      userMarker = L.marker(userLatLng, { icon: userIcon, zIndexOffset: 1000 }).addTo(map).bindTooltip('You');
+      bounds.push(userLatLng);
     }
     salonMarkers.forEach(function(m){ m.remove(); });
     salonMarkers = [];
     (data.salons || []).forEach(function(s) {
-      var m = L.circleMarker([s.lat, s.lng], {
-        radius: 8, color: '#fff', fillColor: '#161616', fillOpacity: 1, weight: 2
-      }).addTo(map);
+      var salonLatLng = [s.lat, s.lng];
+      var m = L.marker(salonLatLng, { icon: salonIcon }).addTo(map).bindTooltip(s.name || 'Salon');
       m.on('click', function() {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'select', id: s.id }));
       });
       salonMarkers.push(m);
+      bounds.push(salonLatLng);
     });
+    if (bounds.length > 1) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
+    else if (bounds.length === 1) map.setView(bounds[0], 14);
   };
 </script>
 </body>
@@ -114,6 +121,7 @@ export default function ChooseLocation() {
   const [mapReady, setMapReady] = useState(false);
 
   const nearby = useHomeStore((s) => s.nearby);
+  const loadingNearby = useHomeStore((s) => s.loadingNearby);
   const fetchNearby = useHomeStore((s) => s.fetchNearby);
 
   // Only salons with real geocoded coordinates can be placed as map pins.
@@ -141,7 +149,7 @@ export default function ChooseLocation() {
     if (!mapReady || !webviewRef.current) return;
     const payload = JSON.stringify({
       user: user ?? FALLBACK,
-      salons: geocodedSalons.map((s) => ({ id: s.id, lat: s.lat, lng: s.lng })),
+      salons: geocodedSalons.map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng })),
     });
     webviewRef.current.injectJavaScript(`window.__setData(${payload}); true;`);
   }, [mapReady, user, geocodedSalons]);
@@ -215,6 +223,14 @@ export default function ChooseLocation() {
             onMessage={onMessage}
             scrollEnabled={false}
           />
+
+          {user && !loadingNearby && nearby.length > 0 && geocodedSalons.length === 0 && (
+            <View style={[styles.mapNotice, { backgroundColor: t.color.surfaceCard }]}>
+              <Text style={[styles.mapNoticeText, { color: t.color.textSecondary }]}>
+                Nearby salons loaded, but none have map coordinates yet.
+              </Text>
+            </View>
+          )}
 
           {/* Bottom card — selected salon */}
           {selectedSalon && (
@@ -315,6 +331,8 @@ const styles = StyleSheet.create({
   mapContainer:  { flex: 1, position: 'relative' },
   webview:       { flex: 1 },
   loader:        { position: 'absolute', top: '50%', left: '50%', zIndex: 10 },
+  mapNotice:     { position: 'absolute', left: 16, right: 16, top: 16, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  mapNoticeText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
 
   // Bottom card (selected salon)
   bottomCard:    { position: 'absolute', left: 12, right: 12, borderRadius: 22, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },

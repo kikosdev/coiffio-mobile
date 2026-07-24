@@ -264,6 +264,14 @@ export default function AppointmentsScreen() {
   const [guestBookings, setGuestBookings] = useState<GuestBookingRef[]>([]);
   const [guestLoading, setGuestLoading] = useState(true);
 
+  const loadGuestBookings = useCallback(() => {
+    setGuestLoading(true);
+    return listGuestBookings()
+      .then(setGuestBookings)
+      .catch(() => setGuestBookings([]))
+      .finally(() => setGuestLoading(false));
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     store.fetchUpcoming();
@@ -272,18 +280,18 @@ export default function AppointmentsScreen() {
 
   // Refetch on focus too — e.g. right after completing a booking and navigating back here.
   useFocusEffect(useCallback(() => {
-    if (!user) return;
+    if (!user) {
+      loadGuestBookings();
+      return;
+    }
     store.fetchUpcoming();
     store.fetchHistory();
-  }, [user]));
+  }, [user, loadGuestBookings]));
 
   useEffect(() => {
     if (user) return;
-    listGuestBookings()
-      .then(setGuestBookings)
-      .catch(() => setGuestBookings([]))
-      .finally(() => setGuestLoading(false));
-  }, [user]);
+    loadGuestBookings();
+  }, [user, loadGuestBookings]);
 
   const upcomingList = store.upcoming();
   const historyList = store.history();

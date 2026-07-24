@@ -84,9 +84,9 @@ export default function ConfirmationScreen() {
     Alert.alert('Calendar', `"${serviceNames[0]}" with ${draft.barberName} added to your calendar.`);
   };
 
-  const handleBackToHome = () => {
+  const handleViewBookings = () => {
     draft.reset();
-    router.replace('/(client)/home');
+    router.replace('/(client)/appointments');
   };
 
   return (
@@ -171,8 +171,8 @@ export default function ConfirmationScreen() {
           <Text style={[styles.calBtnText, { color: t.color.bgBase }]}>Add to calendar</Text>
         </Pressable>
 
-        <Pressable onPress={handleBackToHome} style={styles.homeBtn}>
-          <Text style={[styles.homeBtnText, { color: t.color.textSecondary }]}>Back to home</Text>
+        <Pressable onPress={handleViewBookings} style={styles.homeBtn}>
+          <Text style={[styles.homeBtnText, { color: t.color.textSecondary }]}>View bookings</Text>
         </Pressable>
       </ScrollView>
     </View>

@@ -57,7 +57,7 @@ const ROLES: {
   key: Role;
   title: string;
   sub: string;
-  Icon: (p: { color: string }) => JSX.Element;
+  Icon: (p: { color: string }) => React.ReactElement;
   badge: { label: string; variant: 'gold' | 'dark' } | null;
   route: string;
 }[] = [

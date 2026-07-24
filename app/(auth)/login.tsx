@@ -124,7 +124,7 @@ function IconGoogle() {
   );
 }
 
-const ROLE_ICON: Record<Role, (p: { color: string }) => JSX.Element> = {
+const ROLE_ICON: Record<Role, (p: { color: string }) => React.ReactElement> = {
   client: IconClient,
   staff: IconBarber,
   owner: IconOwner,
