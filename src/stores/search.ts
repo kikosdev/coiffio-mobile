@@ -46,7 +46,7 @@ interface SearchState {
 
   fetchLanding: () => Promise<void>;
   searchServices: (q: string) => Promise<void>;
-  fetchOfferings: (filter: { category?: string; name?: string }, lat?: number, lng?: number) => Promise<void>;
+  fetchOfferings: (filter: { category?: string; categories?: string[]; name?: string; names?: string[] }, lat?: number, lng?: number) => Promise<void>;
 }
 
 export const useSearchStore = create<SearchState>((set) => ({
@@ -84,11 +84,13 @@ export const useSearchStore = create<SearchState>((set) => ({
   },
 
   fetchOfferings: async (filter, lat, lng) => {
-    set({ loadingOfferings: true });
+    set({ offerings: [], loadingOfferings: true });
     try {
       const offerings = await api.get<SalonOffering[]>('/services/offerings', {
         category: filter.category,
+        categories: filter.categories,
         name: filter.name,
+        names: filter.names,
         lat,
         lng,
       });

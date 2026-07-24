@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -46,14 +46,6 @@ function Trash({ color }: { color: string }) {
   );
 }
 
-function Plus({ color }: { color: string }) {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round">
-      <Path d="M12 5v14M5 12h14" />
-    </Svg>
-  );
-}
-
 function CheckIcon({ color }: { color: string }) {
   return (
     <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
@@ -68,7 +60,6 @@ export default function ServicesScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const draft = useBookingDraft();
-  const [catalogueOpen, setCatalogueOpen] = useState(false);
   const [catalog, setCatalog] = useState<BookService[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
 
@@ -103,37 +94,43 @@ export default function ServicesScreen() {
           {draft.services.length} selected{draft.barberName ? ` · ${draft.barberName}` : ''}
         </Text>
 
-        {/* Service rows */}
-        {draft.services.map((s) => (
-          <View key={s.id} style={[styles.serviceRow, { backgroundColor: t.color.surfaceCard }]}>
-            <View style={[styles.iconBox, { backgroundColor: t.color.goldSoft }]}>
-              <Scissors color={t.color.gold} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.serviceName, { color: t.color.textPrimary }]}>{s.name}</Text>
-              <Text style={[styles.serviceMeta, { color: t.color.textMuted }]}>
-                {s.desc} · {s.durationMin} min
-              </Text>
-            </View>
-            <Text style={[styles.servicePrice, { color: t.color.textPrimary }]}>
-              {formatMoney(s.price)}
-            </Text>
-            <Pressable onPress={() => draft.removeService(s.id)} hitSlop={10}>
-              <Trash color={t.color.textMuted} />
-            </Pressable>
-          </View>
-        ))}
-
-        {/* Add another service */}
-        <Pressable
-          style={[styles.addBtn, { borderColor: t.color.borderStrong }]}
-          onPress={() => setCatalogueOpen(true)}
-        >
-          <Plus color={t.color.textSecondary} />
-          <Text style={[styles.addBtnText, { color: t.color.textSecondary }]}>
-            Add another service
-          </Text>
-        </Pressable>
+        {catalogLoading ? (
+          <Text style={[styles.catalogueMeta, { color: t.color.textMuted, paddingVertical: 20 }]}>Loading services…</Text>
+        ) : (
+          catalog.map((s) => {
+            const selected = draft.services.some((ds) => ds.id === s._id);
+            return (
+              <Pressable
+                key={s._id}
+                style={({ pressed }) => [
+                  styles.serviceCard,
+                  {
+                    backgroundColor: pressed ? t.color.surfaceElevated : t.color.surfaceCard,
+                    borderColor: selected ? t.color.gold : t.color.borderSubtle,
+                  },
+                ]}
+                onPress={() => {
+                  if (selected) draft.removeService(s._id);
+                  else draft.addService({ id: s._id, name: s.name, desc: s.category, durationMin: s.durationMin, price: s.price });
+                }}
+              >
+                <View style={[styles.iconBox, { backgroundColor: selected ? t.color.gold : t.color.goldSoft }]}>
+                  {selected ? <CheckIcon color={t.color.onGold} /> : <Scissors color={t.color.gold} />}
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.serviceName, { color: t.color.textPrimary }]}>{s.name}</Text>
+                  <Text style={[styles.serviceMeta, { color: t.color.textMuted }]}>
+                    {s.category} · {s.durationMin} min
+                  </Text>
+                </View>
+                <Text style={[styles.servicePrice, { color: selected ? t.color.gold : t.color.textPrimary }]}>
+                  {formatMoney(s.price)}
+                </Text>
+                {selected && <Trash color={t.color.textMuted} />}
+              </Pressable>
+            );
+          })
+        )}
       </ScrollView>
 
       {/* ── Footer ── */}
@@ -176,54 +173,6 @@ export default function ServicesScreen() {
         </Pressable>
       </View>
 
-      {/* ── Catalogue bottom sheet ── */}
-      <Modal
-        visible={catalogueOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCatalogueOpen(false)}
-      >
-        <Pressable style={styles.overlay} onPress={() => setCatalogueOpen(false)} />
-        <View style={[styles.sheet, { backgroundColor: t.color.surfaceCard, paddingBottom: insets.bottom + 20 }]}>
-          <View style={[styles.sheetHandle, { backgroundColor: t.color.borderStrong }]} />
-          <Text style={[styles.sheetTitle, { color: t.color.textPrimary }]}>Add a service</Text>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {catalogLoading ? (
-              <Text style={[styles.catalogueMeta, { color: t.color.textMuted, paddingVertical: 20 }]}>Loading…</Text>
-            ) : (
-              catalog.map((s) => {
-                const alreadyAdded = draft.services.some((ds) => ds.id === s._id);
-                return (
-                  <Pressable
-                    key={s._id}
-                    style={({ pressed }) => [
-                      styles.catalogueItem,
-                      {
-                        borderBottomColor: t.color.borderSubtle,
-                        backgroundColor: pressed ? t.color.surfaceElevated : 'transparent',
-                        opacity: alreadyAdded ? 0.45 : 1,
-                      },
-                    ]}
-                    disabled={alreadyAdded}
-                    onPress={() => {
-                      draft.addService({ id: s._id, name: s.name, desc: s.category, durationMin: s.durationMin, price: s.price });
-                      setCatalogueOpen(false);
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.catalogueName, { color: t.color.textPrimary }]}>{s.name}</Text>
-                      <Text style={[styles.catalogueMeta, { color: t.color.textMuted }]}>
-                        {s.durationMin} min · {formatMoney(s.price)}
-                      </Text>
-                    </View>
-                    {alreadyAdded && <CheckIcon color={t.color.gold} />}
-                  </Pressable>
-                );
-              })
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -236,14 +185,11 @@ const styles = StyleSheet.create({
   title:           { fontSize: 28, fontWeight: '700', marginTop: 14 },
   subtitle:        { fontSize: 13, fontWeight: '500', marginTop: 5, marginBottom: 18 },
 
-  serviceRow:      { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 16, padding: 14, marginTop: 10 },
+  serviceCard:     { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1.5, borderRadius: 16, padding: 14, marginTop: 10 },
   iconBox:         { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   serviceName:     { fontSize: 16, fontWeight: '700' },
   serviceMeta:     { fontSize: 12, fontWeight: '500', marginTop: 3 },
   servicePrice:    { fontSize: 16, fontWeight: '700', flexShrink: 0 },
-
-  addBtn:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 14, paddingVertical: 16, marginTop: 14 },
-  addBtnText:      { fontSize: 14, fontWeight: '600' },
 
   footer:          { paddingHorizontal: 20, paddingTop: 14, gap: 12, borderTopWidth: 1 },
   footerSummary:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -252,11 +198,5 @@ const styles = StyleSheet.create({
   ctaBtn:          { borderRadius: 100, height: 56, alignItems: 'center', justifyContent: 'center' },
   ctaBtnText:      { fontSize: 15, fontWeight: '700' },
 
-  overlay:         { flex: 1 },
-  sheet:           { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, maxHeight: '70%' },
-  sheetHandle:     { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  sheetTitle:      { fontSize: 17, fontWeight: '700', marginBottom: 14 },
-  catalogueItem:   { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1 },
-  catalogueName:   { fontSize: 15, fontWeight: '600' },
   catalogueMeta:   { fontSize: 12, fontWeight: '500', marginTop: 2 },
 });
