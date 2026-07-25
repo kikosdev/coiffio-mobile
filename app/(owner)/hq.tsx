@@ -1,4 +1,4 @@
-import { View, TouchableOpacity, Pressable } from 'react-native';
+import { RefreshControl, View, TouchableOpacity, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Bell, MapPin } from 'lucide-react-native';
@@ -14,12 +14,12 @@ import { formatMoney } from '../../src/utils/formatMoney';
 export default function OwnerHQ() {
   const t = useTheme();
   const user = useAuthStore((s) => s.user);
-  const { data: salon, isLoading } = useMySalon();
+  const { data: salon, isLoading, refresh } = useMySalon();
   const { unreadCount } = useNotifications();
 
   if (!salon) {
     return (
-      <Screen>
+      <Screen refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refresh} tintColor={t.color.gold} />}>
         <Row justify="center" style={{ paddingTop: 80 }}>
           <T variant="body" color={t.color.textMuted}>{isLoading ? 'Loading…' : 'Could not load HQ.'}</T>
         </Row>
@@ -30,7 +30,7 @@ export default function OwnerHQ() {
   const previewTeam = salon.team.slice(0, 3);
 
   return (
-    <Screen>
+    <Screen refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refresh} tintColor={t.color.gold} />}>
       {/* ── Header ── */}
       <Row justify="space-between" style={{ paddingHorizontal: t.spacing.xxl, paddingTop: t.spacing.xl }}>
         <View>

@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Pressable, Modal,
-  StyleSheet, ViewStyle, TextStyle, StyleProp,
+  StyleSheet, ViewStyle, TextStyle, StyleProp, RefreshControlProps,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
@@ -14,9 +14,10 @@ interface ScreenProps {
   scroll?: boolean;
   style?: StyleProp<ViewStyle>;
   padBottom?: boolean;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
-export function Screen({ children, scroll = true, style, padBottom = true }: ScreenProps) {
+export function Screen({ children, scroll = true, style, padBottom = true, refreshControl }: ScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const bg = { backgroundColor: t.color.bgBase };
@@ -37,6 +38,7 @@ export function Screen({ children, scroll = true, style, padBottom = true }: Scr
         style as ViewStyle,
       ]}
       showsVerticalScrollIndicator={false}
+      refreshControl={refreshControl}
     >
       {children}
     </ScrollView>

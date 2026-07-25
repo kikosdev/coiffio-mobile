@@ -3,6 +3,9 @@ import { api } from './client';
 // Mirrors salon-frontend's VITE_DEFAULT_SALON_SLUG fallback — V1 is single-salon,
 // getSalonBySlug() on the backend falls back to DEFAULT_SALON_ID / the sole salon anyway.
 const SALON_SLUG = process.env.EXPO_PUBLIC_SALON_SLUG ?? 'salon-haire';
+const CATALOG_TTL_MS = 5 * 60 * 1000;
+let catalogCache: { at: number; data: BookService[] } | null = null;
+let stylistCache: { at: number; data: PublicStylist[] } | null = null;
 
 export interface BookService {
   _id: string;
@@ -17,7 +20,13 @@ export interface BookService {
 
 /** GET /book/services — public bookable catalog (OptionalJwtGuard, scoped server-side). */
 export function fetchCatalog(): Promise<BookService[]> {
-  return api.get<BookService[]>('/book/services');
+  if (catalogCache && Date.now() - catalogCache.at < CATALOG_TTL_MS) {
+    return Promise.resolve(catalogCache.data);
+  }
+  return api.get<BookService[]>('/book/services').then((data) => {
+    catalogCache = { at: Date.now(), data };
+    return data;
+  });
 }
 
 export interface PublicStylist {
@@ -31,8 +40,13 @@ export interface PublicStylist {
 
 /** GET /public/salons/:slug/team — public team directory; filter to bookable roles client-side. */
 export async function fetchBookableStylists(): Promise<PublicStylist[]> {
+  if (stylistCache && Date.now() - stylistCache.at < CATALOG_TTL_MS) {
+    return stylistCache.data;
+  }
   const team = await api.get<PublicStylist[]>(`/public/salons/${SALON_SLUG}/team`);
-  return team.filter((s) => s.role === 'stylist' || s.role === 'colorist');
+  const data = team.filter((s) => s.role === 'stylist' || s.role === 'colorist');
+  stylistCache = { at: Date.now(), data };
+  return data;
 }
 
 export interface SlotOption {

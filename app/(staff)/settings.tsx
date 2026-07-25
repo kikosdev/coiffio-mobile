@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { Alert, Linking, View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { ConfirmDialog } from '../../src/components/kit';
 import { useAuthStore } from '../../src/stores/auth';
+import { api, ApiError } from '../../src/api/client';
 
 function ChevronLeft({ color }: { color: string }) {
   return (
@@ -45,6 +46,21 @@ function LogOutIcon({ color }: { color: string }) {
     </Svg>
   );
 }
+function ShieldIcon({ color }: { color: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </Svg>
+  );
+}
+function TrashIcon({ color }: { color: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15" />
+      <Path d="M10 11v6M14 11v6" />
+    </Svg>
+  );
+}
 
 function SectionLabel({ children }: { children: string }) {
   const t = useTheme();
@@ -81,12 +97,34 @@ export default function StaffSettingsScreen() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const deactivateAccount = useAuthStore((s) => s.deactivateAccount);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleConfirmLogout = async () => {
     setShowLogoutConfirm(false);
     await logout();
     router.replace('/');
+  };
+
+  const handleOpenPrivacy = async () => {
+    try {
+      const config = await api.get<{ privacyPolicyUrl: string }>('/config/public');
+      await Linking.openURL(config.privacyPolicyUrl);
+    } catch {
+      await Linking.openURL('https://coiffio.com/privacy');
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      setShowDeleteConfirm(false);
+      await deactivateAccount();
+      router.replace('/');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Unable to delete account.';
+      Alert.alert('Delete account', message);
+    }
   };
 
   return (
@@ -126,6 +164,22 @@ export default function StaffSettingsScreen() {
           />
         </View>
 
+        <SectionLabel>LEGAL</SectionLabel>
+        <View style={[styles.card, { backgroundColor: t.color.surfaceCard }]}>
+          <SettingsRow
+            icon={<ShieldIcon color={t.color.goldWarm} />}
+            label="Politique de confidentialité"
+            onPress={handleOpenPrivacy}
+          />
+          <SettingsRow
+            icon={<TrashIcon color={t.color.danger} />}
+            label="Delete account"
+            sub="Deactivate this staff account"
+            showDivider
+            onPress={() => setShowDeleteConfirm(true)}
+          />
+        </View>
+
         <Pressable
           style={({ pressed }) => [
             styles.logoutBtn,
@@ -146,6 +200,15 @@ export default function StaffSettingsScreen() {
         destructive
         onConfirm={handleConfirmLogout}
         onCancel={() => setShowLogoutConfirm(false)}
+      />
+      <ConfirmDialog
+        visible={showDeleteConfirm}
+        title="Delete account?"
+        message="This will deactivate your staff account and stop new bookings for this profile."
+        confirmLabel="Delete account"
+        destructive
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
       />
     </View>
   );

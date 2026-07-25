@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
+import * as Calendar from 'expo-calendar';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -80,8 +81,33 @@ export default function ConfirmationScreen() {
   }, [result?._id, user]);
 
   const handleAddToCalendar = () => {
-    // V1 stub — replace with expo-calendar when installed
-    Alert.alert('Calendar', `"${serviceNames[0]}" with ${draft.barberName} added to your calendar.`);
+    if (!result) return;
+    const startDate = new Date(result.start);
+    const endDate = new Date(result.end);
+    Calendar.requestCalendarPermissionsAsync()
+      .then(async ({ status }) => {
+        if (status !== 'granted') {
+          Alert.alert('Calendar permission needed', 'Allow calendar access to add this booking to your phone calendar.');
+          return;
+        }
+        const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+        const writable = calendars.find((cal) => cal.allowsModifications) ?? calendars[0];
+        if (!writable) {
+          Alert.alert('Calendar unavailable', 'No writable calendar was found on this phone.');
+          return;
+        }
+        await Calendar.createEventAsync(writable.id, {
+          title: `${serviceNames.join(' + ')} with ${draft.barberName}`,
+          startDate,
+          endDate,
+          location: draft.salonName,
+          notes: `Booking code: ${bookingRef}`,
+        });
+        Alert.alert('Calendar', 'Booking added to your phone calendar.');
+      })
+      .catch(() => {
+        Alert.alert('Calendar', 'Unable to add this booking to your phone calendar.');
+      });
   };
 
   const handleViewBookings = () => {

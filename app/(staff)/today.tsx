@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { RefreshControl, View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -51,13 +51,17 @@ function stateLabel(state: TodayState) {
 export default function StaffToday() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, error, advanceState, refresh } = useTodayBoard();
+  const { data, isLoading, error, advanceState, refresh } = useTodayBoard();
   const { unreadCount, refresh: refreshNotifications } = useNotifications();
   const user = useAuthStore((s) => s.user);
 
   // Refetch whenever this tab regains focus, so a booking made elsewhere shows up
   // without needing an app restart.
-  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+  useFocusEffect(useCallback(() => {
+    refresh();
+    const poll = setInterval(() => { refresh(); }, 25_000);
+    return () => clearInterval(poll);
+  }, [refresh]));
   useAppointmentRealtime(useCallback(() => {
     refresh();
     refreshNotifications();
@@ -119,6 +123,7 @@ export default function StaffToday() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refresh} tintColor={t.color.gold} />}
       >
         {/* ── Earnings hero ── */}
         <LinearGradient

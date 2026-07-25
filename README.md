@@ -1,6 +1,6 @@
 # salon-mobile
 
-**BLACK BOX** — the mobile app for the Coiffio platform. Separate dark sub-brand for clients, staff, and owners. Built with Expo SDK 52 / Expo Router 4.
+**BLACK BOX** — the mobile app for the Coiffio platform. Separate dark sub-brand for clients, staff, and owners. Built with Expo SDK 56 / Expo Router.
 
 ---
 
@@ -8,10 +8,10 @@
 
 | Layer | Choice |
 |---|---|
-| Framework | Expo SDK 52 · React Native 0.76.5 |
-| Navigation | Expo Router 4 (file-based, tab groups) |
+| Framework | Expo SDK 56 |
+| Navigation | Expo Router (file-based, tab groups) |
 | State | Zustand 5 |
-| HTTP | Axios (custom client in `src/api/client.ts`) |
+| HTTP | Fetch wrapper in `src/api/client.ts` |
 | Auth tokens | expo-secure-store |
 | Date / time | date-fns, date-fns-tz (`Africa/Tunis`) |
 | Icons | lucide-react-native |
@@ -19,13 +19,14 @@
 | SVG | react-native-svg |
 | Gradients | expo-linear-gradient |
 | Images | expo-image-picker |
+| Calendar | expo-calendar (optional Add to calendar action) |
 
 ---
 
 ## Running locally
 
 ```bash
-cd salon-mobile
+cd coiffio-mobile
 npm install
 npx expo start         # Opens Expo Go / dev client
 ```
@@ -39,37 +40,30 @@ EXPO_PUBLIC_API_URL=http://192.168.x.x:3000/api   # local network IP for a physi
 EXPO_PUBLIC_API_URL=http://10.0.2.2:3000/api       # Android emulator → host machine
 ```
 
+Run Expo from a shell where that variable is loaded; otherwise the bundle falls back to `https://coif-backend.onrender.com/api`.
+
+`expo-calendar` must be installed before bundling the calendar action:
+
+```bash
+npx expo install expo-calendar
+```
+
 ---
 
-## Dummy data — what is real vs mocked
+## API coverage
 
-> **The sign-in and auth flows are fully wired to the real API.**  
-> Most screens in S1 are still using local dummy data pending API integration.
+The app is API-wired for auth, public marketplace/search, booking, client appointments, staff Today/Schedule, owner HQ, notifications, payments/POS surfaces, and profile/security actions.
 
-### Real API calls (live)
-
-| Screen | API |
+| Surface | Main API |
 |---|---|
-| Login (`/(auth)/login.tsx`) | `POST /api/auth/login` |
-| Create account (`/(auth)/create-account.tsx`) | `POST /api/auth/register` |
-| Client home — token stored in SecureStore | `expo-secure-store` |
-
-### Dummy data (local — no API)
-
-All dummy/stub data lives in `src/data/`:
-
-| File | Used by |
-|---|---|
-| `src/data/dummy.ts` | Client screens — salon info, barber list, services, time slots, bookings, offers |
-| `src/data/staff/today.ts` | Staff Today screen — appointment queue (marked `// SWAP: GET /appointments/mine`) |
-| `src/data/staff/schedule.ts` | Staff Schedule screen (marked `// SWAP: GET /schedule`) |
-| `src/data/staff/earnings.ts` | Staff Earnings screen |
-| `src/data/staff/clients.ts` | Staff Clients screen |
-| `src/data/staff/services.ts` | Staff My Services screen |
-| `src/data/staff/profile.ts` | Staff Profile screen |
-| `src/data/staff/caisse.ts` | Staff Caisse (POS) screen |
-
-All `// SWAP:` comments in the data files mark where the real API endpoint should replace the dummy export.
+| Auth | `POST /auth/login`, `POST /auth/register/client`, `GET/PATCH /auth/me` |
+| Booking flow | `GET /book/services`, `GET /availability/timeline`, `POST /appointments` |
+| Client appointments | `GET /appointments/mine`, `GET /client/home` |
+| Staff Today | `GET /staff/today` + Socket.io refresh + focused polling fallback |
+| Staff Schedule | `GET /staff/schedule/week` |
+| Owner HQ | `GET /owner/hq` |
+| Marketplace | `GET /services/categories`, `/services/search`, `/services/offerings` |
+| Account/privacy | `PATCH /auth/me/deactivate`, `GET /config/public` |
 
 ---
 
@@ -82,7 +76,7 @@ app/
   (auth)/
     login.tsx          Sign in (+ "Continue as guest" for client role)
     create-account.tsx Register
-  (client)/            Tabs: Home · Search · Bookings · Profile
+  (client)/            Tabs: Home · Search · Bookings · Offers · Profile
     home.tsx
     search.tsx
     bookings.tsx
@@ -123,7 +117,7 @@ After login, `app/_layout.tsx` reads `user.role` and calls `router.replace()` to
 |---|---|---|
 | `owner` | `(owner)` | HQ · Caisse · Team · Analytics · Settings |
 | `manager` / `stylist` / `colorist` | `(staff)` | Today · Schedule · Caisse · Clients · Profile |
-| `client` | `(client)` | Home · Search · Bookings · Profile |
+| `client` | `(client)` | Home · Search · Bookings · Offers · Profile |
 
 **Guest:** Tapping "Continue as guest" on the client login screen calls `router.replace('/(client)/home')` without authenticating. No token is set.
 
@@ -168,29 +162,32 @@ const { tokens: t } = useTheme();
 ## API client
 
 `src/api/client.ts`:
-- Axios instance pointing at `EXPO_PUBLIC_API_URL`
-- Request interceptor reads Bearer token from `expo-secure-store` and injects `Authorization` header
-- Response interceptor unwraps `{ data }` envelope
-- 401 → calls `_onUnauthorized` callback (avoids circular import); registered by `authStore.ts` via `setUnauthorizedCallback()`
+- Fetch wrapper pointing at `EXPO_PUBLIC_API_URL`
+- Bearer token is injected from the in-memory auth token restored from `expo-secure-store`
+- Responses unwrap the backend `{ data, message }` envelope
+- Requests time out after 60 seconds to tolerate Render cold starts
 
 ---
 
 ## Auth store
 
-`src/stores/auth/` — `useAuthStore()`:
+`src/stores/auth.ts` — `useAuthStore()`:
 - `login(identifier, password)` → hits API, calls `setSession(token, user)`
-- `setSession(token, user)` → saves to SecureStore, updates Zustand state
-- `logout()` → clears SecureStore, resets state, redirects to `/(auth)/login`
+- `registerClient(...)` → creates a client account and stores the JWT
+- `hydrate()` → restores token from SecureStore and calls `/auth/me`
+- `deactivateAccount()` → calls `/auth/me/deactivate`, clears token, signs out locally
+- `updateExpoPushToken()` → stores or clears the current user's Expo push token
+- `logout()` → clears SecureStore and resets state
 
 ---
 
-## Format utilities (`src/lib/format.ts`)
+## Format utilities
 
 | Function | Description |
 |---|---|
 | `formatMoney(amount)` | TND with 3 decimal places |
 | `formatSalonTime(date)` | `HH:mm` in Africa/Tunis timezone |
-| `salonDateISO(date)` | `YYYY-MM-DD` built from local getters (never `toISOString()`) |
+| `salonDateKey(date)` | `YYYY-MM-DD` in the salon clock |
 
 ---
 
@@ -205,10 +202,8 @@ Multi-location (owner Salons List, New Location) is shown as a **LockedTeaser** 
 
 ---
 
-## What's next (S1 → S2)
+## Notes
 
-1. Replace all `src/data/staff/*.ts` dummy exports with real API calls
-2. Wire client booking flow to `POST /appointments`
-3. Owner HQ screen — connect to `/api/overview`
-4. Staff Today/Schedule — connect to `/api/appointments`
-5. Push notifications (Expo Notifications + backend WebSocket bridge)
+- The client Offers tab and `app/(client)/offers.tsx` are intentionally kept.
+- Add to calendar is user-triggered from the booking confirmation screen; bookings are stored in the backend schedule at creation time.
+- Expo push delivery still requires adding `expo-notifications` and a sending worker/service; backend token storage is available at `/auth/me/push-token`.

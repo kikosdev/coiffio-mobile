@@ -34,6 +34,8 @@ interface AuthState {
   registerClient: (dto: { name: string; identifier: string; phone: string; password: string; email?: string }) => Promise<AuthUser>;
   updateProfile: (dto: { name?: string; email?: string; phone?: string }) => Promise<AuthUser>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  updateExpoPushToken: (expoPushToken?: string | null) => Promise<void>;
+  deactivateAccount: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -98,6 +100,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   changePassword: async (currentPassword, newPassword) => {
     await api.patch('/auth/me/password', { currentPassword, newPassword });
+  },
+
+  updateExpoPushToken: async (expoPushToken) => {
+    await api.patch('/auth/me/push-token', { expoPushToken });
+  },
+
+  deactivateAccount: async () => {
+    await api.patch('/auth/me/deactivate');
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    setAuthToken(null);
+    set({ user: null, status: 'ready' });
   },
 
   logout: async () => {

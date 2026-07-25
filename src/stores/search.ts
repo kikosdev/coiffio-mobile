@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { api } from '../api/client';
 
+const SEARCH_LANDING_TTL_MS = 5 * 60 * 1000;
+let searchLandingCacheAt = 0;
+
 export interface CategoryChip {
   category: string;
   serviceCount: number;
@@ -12,6 +15,7 @@ export interface ServiceHit {
   durationMin: number | null;
   gender: string;
   salonCount: number;
+  serviceIds?: string[];
 }
 
 export interface PublicBarber {
@@ -47,7 +51,14 @@ interface SearchState {
 
   fetchLanding: () => Promise<void>;
   searchServices: (q: string) => Promise<void>;
-  fetchOfferings: (filter: { category?: string; categories?: string[]; name?: string; names?: string[] }, lat?: number, lng?: number) => Promise<void>;
+  fetchOfferings: (filter: {
+    category?: string;
+    categories?: string[];
+    name?: string;
+    names?: string[];
+    serviceIds?: string[];
+    match?: 'all' | 'any';
+  }, lat?: number, lng?: number) => Promise<void>;
 }
 
 export const useSearchStore = create<SearchState>((set) => ({
@@ -59,12 +70,22 @@ export const useSearchStore = create<SearchState>((set) => ({
   loadingOfferings: false,
 
   fetchLanding: async () => {
+    const current = useSearchStore.getState();
+    if (
+      current.categories.length > 0 &&
+      current.barbers.length > 0 &&
+      !current.loadingLanding &&
+      Date.now() - searchLandingCacheAt < SEARCH_LANDING_TTL_MS
+    ) {
+      return;
+    }
     set({ loadingLanding: true });
     try {
       const [categories, barbers] = await Promise.all([
         api.get<CategoryChip[]>('/services/categories'),
         api.get<PublicBarber[]>('/barbers/public'),
       ]);
+      searchLandingCacheAt = Date.now();
       set({ categories, barbers, loadingLanding: false });
     } catch {
       set({ categories: [], barbers: [], loadingLanding: false });
@@ -92,6 +113,8 @@ export const useSearchStore = create<SearchState>((set) => ({
         categories: filter.categories,
         name: filter.name,
         names: filter.names,
+        serviceIds: filter.serviceIds,
+        match: filter.match,
         lat,
         lng,
       });

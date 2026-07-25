@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert, RefreshControl, StyleSheet } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, parse, differenceInCalendarDays } from 'date-fns';
@@ -293,6 +293,11 @@ export default function AppointmentsScreen() {
     loadGuestBookings();
   }, [user, loadGuestBookings]);
 
+  const handleRefresh = useCallback(() => {
+    if (!user) return loadGuestBookings();
+    return Promise.all([store.fetchUpcoming(), store.fetchHistory()]).then(() => undefined);
+  }, [user, store, loadGuestBookings]);
+
   const upcomingList = store.upcoming();
   const historyList = store.history();
   const nextVisit = upcomingList[0] ?? null;
@@ -309,6 +314,7 @@ export default function AppointmentsScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={guestLoading} onRefresh={handleRefresh} tintColor={t.color.gold} />}
         >
           <Text style={[styles.title, { color: t.color.textPrimary }]}>Appointments</Text>
 
@@ -370,6 +376,7 @@ export default function AppointmentsScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={store.loadingUpcoming || store.loadingHistory} onRefresh={handleRefresh} tintColor={t.color.gold} />}
       >
         <Text style={[styles.title, { color: t.color.textPrimary }]}>Appointments</Text>
 

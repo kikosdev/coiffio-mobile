@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { RefreshControl, View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, parseISO } from 'date-fns';
@@ -23,7 +23,7 @@ function slotBorderColor(state: ScheduleSlotState, t: ReturnType<typeof useTheme
 export default function StaffSchedule() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, error, refresh } = useSchedule();
+  const { data, isLoading, error, refresh } = useSchedule();
   const { weekDates, slots, dayWindows } = data;
 
   const [selectedDate, setSelectedDate] = useState(TODAY);
@@ -99,6 +99,7 @@ export default function StaffSchedule() {
         style={{ flex: 1 }}
         contentContainerStyle={[styles.slotList, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refresh} tintColor={t.color.gold} />}
       >
         {dayWindows[selectedDate] === null ? (
           <View style={styles.emptyWrap}>
