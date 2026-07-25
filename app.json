@@ -44,6 +44,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "304cc1f5-24e8-4499-a693-adfcd9bca90d"
+      }
+    },
+    "owner": "skandera"
   }
 }
