@@ -9,6 +9,7 @@ import { useAuthStore } from '../../../src/stores/auth';
 import { ApiError } from '../../../src/api/client';
 import { createAppointment } from '../../../src/api/booking';
 import { formatMoney } from '../../../src/utils/formatMoney';
+import { DEFAULT_PHONE_PREFIX, joinPhoneNumber, normalizePhonePrefix, splitPhoneNumber } from '../../../src/utils/phone';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -40,23 +41,46 @@ export default function PaymentScreen() {
 
   const [submitting, setSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState('');
+  const [phonePrefix, setPhonePrefix] = useState(DEFAULT_PHONE_PREFIX);
+  const [phoneLocal, setPhoneLocal] = useState('');
 
   // Pre-fill contact details from the signed-in profile — still editable, still required.
   useEffect(() => {
     if (!user || draft.contact.firstName || draft.contact.phone) return;
     const parts = (user.name ?? '').trim().split(' ');
+    const split = splitPhoneNumber(user.phone ?? '');
+    setPhonePrefix(split.prefix);
+    setPhoneLocal(split.local);
     draft.setContact({
       firstName: parts[0] ?? '',
       lastName: parts.slice(1).join(' '),
-      phone: user.phone ?? '',
+      phone: joinPhoneNumber(split.prefix, split.local),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const contact = draft.contact;
+  useEffect(() => {
+    if (phoneLocal || !contact.phone) return;
+    const split = splitPhoneNumber(contact.phone);
+    setPhonePrefix(split.prefix);
+    setPhoneLocal(split.local);
+  }, [contact.phone, phoneLocal]);
+
+  const updatePhonePrefix = (value: string) => {
+    const nextPrefix = normalizePhonePrefix(value);
+    setPhonePrefix(nextPrefix);
+    draft.setContact({ phone: joinPhoneNumber(nextPrefix, phoneLocal) });
+  };
+
+  const updatePhoneLocal = (value: string) => {
+    setPhoneLocal(value);
+    draft.setContact({ phone: joinPhoneNumber(phonePrefix, value) });
+  };
+
   const contactValid =
     contact.firstName.trim() !== '' &&
-    contact.phone.trim() !== '';
+    phoneLocal.trim() !== '';
   const canSubmit = contactValid && !!draft.barberId && !!draft.slotStartISO && draft.services.length > 0;
 
   const handleConfirmBooking = async () => {
@@ -125,14 +149,27 @@ export default function PaymentScreen() {
               placeholderTextColor={t.color.textMuted}
             />
           </View>
-          <TextInput
-            style={[styles.detailsInput, { backgroundColor: t.color.surfaceElevated, color: t.color.textPrimary }]}
-            value={contact.phone}
-            onChangeText={(v) => draft.setContact({ phone: v })}
-            placeholder="Mobile number"
-            placeholderTextColor={t.color.textMuted}
-            keyboardType="phone-pad"
-          />
+          <View style={[styles.phoneField, { backgroundColor: t.color.surfaceElevated }]}>
+            <View style={[styles.phonePrefix, { borderRightColor: t.color.borderSubtle }]}>
+              <Text style={styles.phoneFlag}>🇹🇳</Text>
+              <TextInput
+                value={phonePrefix}
+                onChangeText={updatePhonePrefix}
+                placeholder="+216"
+                placeholderTextColor={t.color.textMuted}
+                keyboardType="phone-pad"
+                style={[styles.phonePrefixInput, { color: t.color.textPrimary }]}
+              />
+            </View>
+            <TextInput
+              style={[styles.phoneLocalInput, { color: t.color.textPrimary }]}
+              value={phoneLocal}
+              onChangeText={updatePhoneLocal}
+              placeholder="20 123 456"
+              placeholderTextColor={t.color.textMuted}
+              keyboardType="phone-pad"
+            />
+          </View>
         </View>
 
         {/* ── Booking details ── */}
@@ -226,6 +263,11 @@ const styles = StyleSheet.create({
   detailsTitle:   { fontSize: 15, fontWeight: '700', marginBottom: 2 },
   detailsRow:     { flexDirection: 'row', gap: 10 },
   detailsInput:   { borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 14, fontWeight: '600' },
+  phoneField:     { height: 46, borderRadius: 12, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
+  phonePrefix:    { height: '100%', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, borderRightWidth: 1 },
+  phoneFlag:      { fontSize: 14 },
+  phonePrefixInput: { width: 54, fontSize: 14, fontWeight: '700', paddingVertical: 0 },
+  phoneLocalInput:{ flex: 1, height: '100%', paddingHorizontal: 14, fontSize: 14, fontWeight: '600' },
 
   // Method toggle
   methodRow:      { flexDirection: 'row', gap: 8, marginBottom: 16 },

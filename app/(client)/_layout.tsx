@@ -74,6 +74,7 @@ export default function ClientLayout() {
       <Tabs.Screen name="salon"        options={{ href: null }} />
       <Tabs.Screen name="barber"       options={{ href: null }} />
       <Tabs.Screen name="booking"      options={{ href: null }} />
+      <Tabs.Screen name="search-offerings" options={{ href: null }} />
     </Tabs>
   );
 }

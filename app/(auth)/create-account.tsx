@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useRoleStore } from '../../src/state/role';
 import { useAuthStore } from '../../src/stores/auth';
+import { DEFAULT_PHONE_PREFIX, joinPhoneNumber, normalizePhonePrefix } from '../../src/utils/phone';
 
 // ── SVG icons ─────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,7 @@ export default function CreateAccountScreen() {
 
   const [fullName, setFullName]         = useState('');
   const [identifier, setIdentifier]     = useState('');
+  const [phonePrefix, setPhonePrefix]   = useState(DEFAULT_PHONE_PREFIX);
   const [phone, setPhone]               = useState('');
   const [password, setPassword]         = useState('');
   const [showPw, setShowPw]             = useState(false);
@@ -119,6 +121,7 @@ export default function CreateAccountScreen() {
   const canSubmit =
     fullName.trim().length >= 2 &&
     identifier.trim().length >= 3 &&
+    normalizePhonePrefix(phonePrefix).length > 1 &&
     phone.trim().length >= 6 &&
     password.length >= 8 &&
     agreed;
@@ -130,7 +133,7 @@ export default function CreateAccountScreen() {
       await registerClient({
         name: fullName.trim(),
         identifier: identifier.trim(),
-        phone: phone.trim(),
+        phone: joinPhoneNumber(phonePrefix, phone),
         password,
       });
       setRole('client');
@@ -231,13 +234,20 @@ export default function CreateAccountScreen() {
         <View style={[styles.field, { backgroundColor: t.color.surfaceCard, borderColor: phoneFocused ? t.color.gold : t.color.borderSubtle, paddingHorizontal: 0, gap: 0 }]}>
           {/* Country prefix */}
           <View style={[styles.phonePrefix, { borderRightColor: t.color.borderSubtle }]}>
-            <Text style={{ fontSize: 14, marginRight: 2 }}>🇺🇸</Text>
-            <Text style={[styles.phonePrefixText, { color: t.color.textPrimary }]}>+1</Text>
+            <Text style={{ fontSize: 14, marginRight: 2 }}>🇹🇳</Text>
+            <TextInput
+              value={phonePrefix}
+              onChangeText={(v) => setPhonePrefix(normalizePhonePrefix(v))}
+              placeholder="+216"
+              placeholderTextColor={t.color.textMuted}
+              keyboardType="phone-pad"
+              style={[styles.phonePrefixText, { color: t.color.textPrimary }]}
+            />
           </View>
           <TextInput
             value={phone}
             onChangeText={setPhone}
-            placeholder="415 555 0142"
+            placeholder="20 123 456"
             placeholderTextColor={t.color.textMuted}
             keyboardType="phone-pad"
             onFocus={() => setPhoneFocused(true)}
@@ -365,10 +375,10 @@ const styles = StyleSheet.create({
 
   phonePrefix: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 14, height: '100%',
+    paddingHorizontal: 12, height: '100%',
     borderRightWidth: 1,
   },
-  phonePrefixText: { fontSize: 15, fontWeight: '600' },
+  phonePrefixText: { width: 54, fontSize: 15, fontWeight: '600', paddingVertical: 0 },
 
   strengthRow: { flexDirection: 'row', gap: 6, marginTop: 10 },
   strengthBar: { flex: 1, height: 4, borderRadius: 2 },
