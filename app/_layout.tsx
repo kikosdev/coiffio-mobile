@@ -17,6 +17,7 @@ import { ThemeProvider } from '../src/theme/ThemeProvider';
 import { useAuthStore } from '../src/stores/auth';
 import { useRoleStore } from '../src/state/role';
 import { mapBackendRoleToSurface } from '../src/features/auth/roleConfig';
+import { usePushNotifications } from '../src/hooks/usePushNotifications';
 
 const APP_BG = '#0E0E0E';
 
@@ -32,6 +33,7 @@ export default function RootLayout() {
     Inter_900Black,
   });
   const hydrate = useAuthStore((s) => s.hydrate);
+  usePushNotifications();
 
   useEffect(() => {
     hydrate().then(() => {

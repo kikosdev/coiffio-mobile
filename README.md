@@ -20,6 +20,7 @@
 | Gradients | expo-linear-gradient |
 | Images | expo-image-picker |
 | Calendar | expo-calendar (optional Add to calendar action) |
+| Push notifications | expo-notifications, expo-device, expo-constants |
 
 ---
 
@@ -64,6 +65,7 @@ The app is API-wired for auth, public marketplace/search, booking, client appoin
 | Owner HQ | `GET /owner/hq` |
 | Marketplace | `GET /services/categories`, `/services/search`, `/services/offerings` |
 | Account/privacy | `PATCH /auth/me/deactivate`, `GET /config/public` |
+| Push notifications | `PATCH /auth/me/push-token` + Expo push delivery from backend notifications |
 
 ---
 
@@ -179,6 +181,12 @@ const { tokens: t } = useTheme();
 - `updateExpoPushToken()` → stores or clears the current user's Expo push token
 - `logout()` → clears SecureStore and resets state
 
+## Push notifications
+
+`src/hooks/usePushNotifications.ts` registers a real Expo push token after login when notifications are enabled, then stores it with `PATCH /auth/me/push-token`. If notifications are disabled, the token is cleared server-side.
+
+Real device builds need an Expo project id. EAS builds expose `Constants.easConfig.projectId`; for local/dev-client builds, add the project id under `expo.extra.eas.projectId` in `app.json` once the Expo project exists.
+
 ---
 
 ## Format utilities
@@ -206,4 +214,4 @@ Multi-location (owner Salons List, New Location) is shown as a **LockedTeaser** 
 
 - The client Offers tab and `app/(client)/offers.tsx` are intentionally kept.
 - Add to calendar is user-triggered from the booking confirmation screen; bookings are stored in the backend schedule at creation time.
-- Expo push delivery still requires adding `expo-notifications` and a sending worker/service; backend token storage is available at `/auth/me/push-token`.
+- Push notifications require a physical device and a valid Expo project id; simulators do not receive Expo push tokens.
