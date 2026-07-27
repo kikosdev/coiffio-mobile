@@ -121,8 +121,8 @@ export interface CreateAppointmentDto {
   stylistId: string;
   start: string; // ISO
   clientId?: string;
-  clientName: string;
-  clientPhone: string;
+  clientName?: string;
+  clientPhone?: string;
   clientEmail?: string;
   source?: 'online';
 }
@@ -147,8 +147,8 @@ export interface BookedAppointment {
 
 /**
  * POST /appointments (OptionalJwtGuard) — the same endpoint the web storefront uses for
- * both guest and signed-in bookings. The backend resolves/creates the Client by
- * (salonId, phone) server-side (merge-on-phone, Décision #10) — never pass a clientId here.
+ * both guest and signed-in bookings. Guests resolve/create the Client by phone; signed-in
+ * clients pass their authenticated clientId so the booking is guaranteed to appear in Mine.
  */
 export function createAppointment(dto: CreateAppointmentDto): Promise<BookedAppointment> {
   return api.post<BookedAppointment>('/appointments', dto);

@@ -94,6 +94,7 @@ export default function PaymentScreen() {
         serviceIds: draft.services.map((s) => s.id),
         stylistId: draft.barberId,
         start: draft.slotStartISO,
+        ...(user?.clientId ? { clientId: user.clientId } : {}),
         clientName: `${contact.firstName} ${contact.lastName}`.trim(),
         clientPhone: contact.phone,
         source: 'online',
