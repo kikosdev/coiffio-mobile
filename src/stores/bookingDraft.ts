@@ -29,6 +29,12 @@ function warnIfNotObjectId(label: string, id: string): void {
 
 interface BookingDraft {
   salonId: string | null;
+  /**
+   * The tenant key every booking route needs (`/:salonSlug/...`). Distinct from `salonId`:
+   * `salonId` is the Mongo `_id` the screens navigate by, the slug is what the API resolves the
+   * tenant from. Both are carried so neither has to be re-derived mid-flow.
+   */
+  salonSlug: string | null;
   barberId: string | null;
   barberName: string;
   salonName: string;
@@ -40,7 +46,11 @@ interface BookingDraft {
   result: BookedAppointment | null;
 
   // actions
-  init(salonId: string, barberId: string, names: { barberName: string; salonName: string }): void;
+  init(
+    salon: { id: string; slug: string },
+    barberId: string,
+    names: { barberName: string; salonName: string },
+  ): void;
   setStylist(barberId: string, barberName: string): void;
   addService(s: DraftService): void;
   removeService(id: string): void;
@@ -58,6 +68,7 @@ interface BookingDraft {
 
 export const useBookingDraft = create<BookingDraft>()((set, get) => ({
   salonId: null,
+  salonSlug: null,
   barberId: null,
   barberName: '',
   salonName: '',
@@ -68,11 +79,15 @@ export const useBookingDraft = create<BookingDraft>()((set, get) => ({
   contact: { ...EMPTY_CONTACT },
   result: null,
 
-  init: (salonId, barberId, names) => {
-    warnIfNotObjectId('salonId', salonId);
+  init: (salon, barberId, names) => {
+    warnIfNotObjectId('salonId', salon.id);
     warnIfNotObjectId('barberId', barberId);
+    if (__DEV__ && !salon.slug) {
+      console.warn('[bookingDraft] init() got an empty salonSlug — every booking call will 404');
+    }
     set({
-      salonId, barberId, barberName: names.barberName, salonName: names.salonName,
+      salonId: salon.id, salonSlug: salon.slug,
+      barberId, barberName: names.barberName, salonName: names.salonName,
       services: [], date: null, time: null, slotStartISO: null,
       contact: { ...EMPTY_CONTACT }, result: null,
     });
@@ -103,7 +118,7 @@ export const useBookingDraft = create<BookingDraft>()((set, get) => ({
 
   reset: () =>
     set({
-      salonId: null, barberId: null, barberName: '', salonName: '', services: [],
+      salonId: null, salonSlug: null, barberId: null, barberName: '', salonName: '', services: [],
       date: null, time: null, slotStartISO: null, contact: { ...EMPTY_CONTACT }, result: null,
     }),
 

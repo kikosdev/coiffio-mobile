@@ -1,4 +1,4 @@
-import { View, TouchableOpacity } from 'react-native';
+import { View } from 'react-native';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import {
   Screen, ScreenHeader, Card, Row, T, Eyebrow, Avatar,
@@ -16,18 +16,16 @@ export default function OwnerAnalytics() {
       <ScreenHeader
         title="Analytics"
         right={
-          <TouchableOpacity style={{
+          // useAnalytics() is hardcoded to period: 'month' server-side — no period switching
+          // exists yet, so this is a static label now, not a dropdown that did nothing.
+          <View style={{
             backgroundColor: t.color.surfaceElevated,
             borderRadius: t.radius.pill,
             paddingHorizontal: 14,
             paddingVertical: 7,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
           }}>
             <T variant="small" color={t.color.textSecondary}>This month</T>
-            <T variant="small" color={t.color.textSecondary}>▾</T>
-          </TouchableOpacity>
+          </View>
         }
       />
 

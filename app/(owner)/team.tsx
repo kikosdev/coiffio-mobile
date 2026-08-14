@@ -5,6 +5,7 @@ import {
   Screen, ScreenHeader, Card, Row, T, Avatar, Badge, StatusDot, Button,
 } from '../../src/components/kit';
 import { useMySalon } from '../../src/hooks/owner/useMySalon';
+import { HeaderAvatarButton } from '../../src/components/owner/HeaderAvatarButton';
 
 export default function OwnerTeam() {
   const t = useTheme();
@@ -17,13 +18,16 @@ export default function OwnerTeam() {
         title="Team"
         subtitle={isLoading ? 'Loading…' : `${team.length} barbers`}
         right={
-          <Button
-            variant="gold"
-            size="sm"
-            onPress={() => router.push('/(owner)/team/invite' as never)}
-          >
-            + Invite
-          </Button>
+          <Row gap={14}>
+            <Button
+              variant="gold"
+              size="sm"
+              onPress={() => router.push('/(owner)/team/invite' as never)}
+            >
+              + Invite
+            </Button>
+            <HeaderAvatarButton />
+          </Row>
         }
       />
 

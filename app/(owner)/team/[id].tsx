@@ -4,12 +4,15 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, MapPin } from 'lucide-react-native';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import {
-  Screen, Row, T, Eyebrow, Card, Avatar, Badge, Button,
+  Screen, Row, T, Eyebrow, Card, Avatar, Badge, Button, ConfirmDialog,
 } from '../../../src/components/kit';
 import { ComingNextLock } from '../../../src/components/owner/ComingNextLock';
 import { useMySalon } from '../../../src/hooks/owner/useMySalon';
 import { useBarberDetail } from '../../../src/hooks/owner/useBarberDetail';
 import { formatMoney } from '../../../src/utils/formatMoney';
+import * as team from '../../../src/api/owner/team';
+import { ApiError } from '../../../src/api/client';
+import { useOwnerSalonStore } from '../../../src/stores/ownerSalon';
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const TODAY_IDX = (new Date().getDay() + 6) % 7; // Mon=0 … Sun=6
@@ -17,10 +20,47 @@ const TODAY_IDX = (new Date().getDay() + 6) % 7; // Mon=0 … Sun=6
 export default function BarberDetail() {
   const t = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const staffId = id ?? '';
   const [showReassign, setShowReassign] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'deactivate' | 'revoke' | null>(null);
+  const [actionSaving, setActionSaving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const refreshSalon = useOwnerSalonStore((s) => s.refresh);
 
   const { data: salon } = useMySalon();
-  const { data: barber, isLoading, error } = useBarberDetail(id ?? '');
+  const { data: barber, isLoading, error } = useBarberDetail(staffId);
+
+  async function handleDeactivate() {
+    setConfirmAction(null);
+    setActionSaving(true);
+    setActionError(null);
+    try {
+      await team.deactivate(staffId);
+      await refreshSalon();
+      router.back();
+    } catch (err) {
+      // No client-side "last owner"/self-deactivation rule — surface whatever the backend
+      // actually rejected with, rather than guessing and hiding its real reason.
+      setActionError(err instanceof ApiError ? err.message : 'Impossible de désactiver ce membre.');
+    } finally {
+      setActionSaving(false);
+    }
+  }
+
+  async function handleRevokeAccess() {
+    setConfirmAction(null);
+    setActionSaving(true);
+    setActionError(null);
+    try {
+      await team.revokeAccess(staffId);
+      await refreshSalon();
+      router.back();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Impossible de révoquer l'accès.");
+    } finally {
+      setActionSaving(false);
+    }
+  }
 
   if (!barber) {
     return (
@@ -62,7 +102,7 @@ export default function BarberDetail() {
         margin: t.spacing.xxl,
         backgroundColor: t.color.goldSoft,
         borderWidth: 1,
-        borderColor: '#34302A',
+        borderColor: t.color.goldBorder,
         borderRadius: t.radius.xl,
         padding: t.spacing.md,
         flexDirection: 'row',
@@ -129,9 +169,76 @@ export default function BarberDetail() {
 
       {/* Action buttons */}
       <Row gap={10} style={{ paddingHorizontal: t.spacing.xxl, marginTop: t.spacing.xl }}>
-        <Button variant="dark" style={{ flex: 1 }}>Schedule</Button>
+        <Button
+          variant="dark"
+          style={{ flex: 1 }}
+          onPress={() => router.push(('/(owner)/team/schedule/' + staffId) as never)}
+        >
+          Schedule
+        </Button>
         <Button variant="dark" style={{ flex: 1 }} disabled>Commission</Button>
       </Row>
+      <Row gap={10} style={{ paddingHorizontal: t.spacing.xxl, marginTop: t.spacing.sm }}>
+        <Button
+          variant="white"
+          style={{ flex: 1 }}
+          onPress={() => router.push(('/(owner)/team/edit/' + staffId) as never)}
+        >
+          Modifier
+        </Button>
+      </Row>
+
+      {actionError != null && (
+        <T variant="small" color={t.color.danger} style={{ paddingHorizontal: t.spacing.xxl, marginTop: t.spacing.md }}>
+          {actionError}
+        </T>
+      )}
+
+      {/* Destructive zone — two distinct actions, deliberately not merged into one button. */}
+      <View style={{ paddingHorizontal: t.spacing.xxl, marginTop: t.spacing.xl, gap: 10 }}>
+        <Eyebrow>Zone sensible</Eyebrow>
+        <T variant="small" color={t.color.textMuted} style={{ lineHeight: 16 }}>
+          Désactiver masque ce membre du salon (réversible côté backoffice). Révoquer l'accès
+          coupe la connexion au compte — une action distincte, plus radicale.
+        </T>
+        <Row gap={10}>
+          <Button
+            variant="dark"
+            style={{ flex: 1 }}
+            disabled={actionSaving}
+            onPress={() => setConfirmAction('deactivate')}
+          >
+            Désactiver
+          </Button>
+          <Button
+            variant="dark"
+            style={{ flex: 1 }}
+            disabled={actionSaving}
+            onPress={() => setConfirmAction('revoke')}
+          >
+            Révoquer l'accès
+          </Button>
+        </Row>
+      </View>
+
+      <ConfirmDialog
+        visible={confirmAction === 'deactivate'}
+        title={`Désactiver ${barber.name} ?`}
+        message="Ce membre disparaîtra des listes actives du salon. Réversible par le backoffice."
+        confirmLabel="Désactiver"
+        destructive
+        onConfirm={handleDeactivate}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        visible={confirmAction === 'revoke'}
+        title={`Révoquer l'accès de ${barber.name} ?`}
+        message="Ce membre ne pourra plus se connecter à son compte. Action distincte de la désactivation."
+        confirmLabel="Révoquer"
+        destructive
+        onConfirm={handleRevokeAccess}
+        onCancel={() => setConfirmAction(null)}
+      />
 
       {/* Reassign teaser modal */}
       <Modal visible={showReassign} animationType="slide" transparent presentationStyle="overFullScreen">

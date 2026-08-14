@@ -7,6 +7,7 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useAppointments, type Appointment, type AppointmentStatus } from '../../../src/stores/appointments';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
+import { resolveSalonSlug } from '../../../src/api/salons';
 import { useAuthStore } from '../../../src/stores/auth';
 import { formatMoney } from '../../../src/utils/formatMoney';
 import { formatSalonDate, formatSalonTime } from '../../../src/utils/salonTime';
@@ -104,8 +105,13 @@ function NextVisitCard({ appt }: { appt: Appointment }) {
     );
   };
 
-  const handleReschedule = () => {
-    draft.init('s1', appt.barber.id, {
+  const handleReschedule = async () => {
+    const slug = await resolveSalonSlug(appt.salon.id);
+    if (!slug) {
+      Alert.alert('Could not start booking', 'This salon is unavailable right now.');
+      return;
+    }
+    draft.init({ id: appt.salon.id, slug }, appt.barber.id, {
       barberName: appt.barber.name,
       salonName: appt.salon.name,
     });
@@ -209,8 +215,13 @@ function HistoryRow({ appt }: { appt: Appointment }) {
   const dateLabel = format(parse(appt.date, 'yyyy-MM-dd', new Date()), 'MMM d');
   const serviceStr = appt.services.map((s) => s.name).join(' · ');
 
-  const handleBookAgain = () => {
-    draft.init('s1', appt.barber.id, {
+  const handleBookAgain = async () => {
+    const slug = await resolveSalonSlug(appt.salon.id);
+    if (!slug) {
+      Alert.alert('Could not start booking', 'This salon is unavailable right now.');
+      return;
+    }
+    draft.init({ id: appt.salon.id, slug }, appt.barber.id, {
       barberName: appt.barber.name,
       salonName: appt.salon.name,
     });

@@ -1,8 +1,13 @@
-import { View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Modal, TextInput, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
 import { Banknote } from 'lucide-react-native';
 import { useTheme } from '../../src/theme/ThemeProvider';
-import { Screen, ScreenHeader, Card, Row, T, Eyebrow, Avatar } from '../../src/components/kit';
+import { Screen, ScreenHeader, Card, Row, T, Eyebrow, Avatar, Button } from '../../src/components/kit';
 import { useCaisseOverview } from '../../src/hooks/owner/useCaisseOverview';
+import { HeaderAvatarButton } from '../../src/components/owner/HeaderAvatarButton';
+import * as caisseApi from '../../src/api/owner/caisse';
+import { ApiError } from '../../src/api/client';
 import { formatMoney } from '../../src/utils/formatMoney';
 
 function initials(name: string): string {
@@ -12,10 +17,76 @@ function initials(name: string): string {
 export default function OwnerCaisse() {
   const t = useTheme();
   const { data, isLoading, error } = useCaisseOverview();
+  const [csvText, setCsvText] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  // No expo-sharing/expo-file-system/expo-clipboard installed — per instructions, don't add a
+  // package just for this. The CSV is shown in a selectable text field the owner can long-press
+  // to copy natively, same fallback used for the generated password in team/invite.tsx.
+  async function handleExport(): Promise<void> {
+    setExporting(true);
+    try {
+      const csv = await caisseApi.exportCsv({ period: 'day' });
+      setCsvText(csv);
+    } catch (err) {
+      Alert.alert('Erreur', err instanceof ApiError ? err.message : "Impossible d'exporter le rapport.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <Screen>
-      <ScreenHeader title="Caisse" subtitle="Salon-wide · today" />
+      <ScreenHeader
+        title="Caisse"
+        subtitle="Salon-wide · today"
+        right={
+          <Row gap={14}>
+            <Button variant="gold" size="sm" onPress={() => router.push('/(owner)/caisse/checkout' as never)}>
+              Encaisser
+            </Button>
+            <HeaderAvatarButton />
+          </Row>
+        }
+      />
+
+      <Row gap={10} style={{ paddingHorizontal: t.spacing.xxl, marginBottom: t.spacing.lg }}>
+        <TouchableOpacity onPress={() => router.push('/(owner)/caisse/expenses' as never)}>
+          <T variant="small" color={t.color.gold}>Dépenses</T>
+        </TouchableOpacity>
+        <T variant="small" color={t.color.borderStrong}>·</T>
+        <TouchableOpacity onPress={handleExport} disabled={exporting}>
+          <T variant="small" color={t.color.gold}>{exporting ? 'Export…' : 'Exporter CSV'}</T>
+        </TouchableOpacity>
+      </Row>
+
+      <Modal visible={csvText !== null} animationType="slide" transparent onRequestClose={() => setCsvText(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+          <View style={{
+            backgroundColor: t.color.surfaceCard, borderTopLeftRadius: t.radius.xl, borderTopRightRadius: t.radius.xl,
+            padding: t.spacing.lg, maxHeight: '75%',
+          }}>
+            <T variant="subtitle" style={{ marginBottom: 6 }}>Rapport CSV</T>
+            <T variant="small" color={t.color.textMuted} style={{ marginBottom: 12 }}>
+              Appuyez longuement sur le texte pour le sélectionner et le copier.
+            </T>
+            <TextInput
+              style={{
+                backgroundColor: t.color.surfaceElevated, borderRadius: t.radius.md, borderWidth: 1,
+                borderColor: t.color.borderSubtle, padding: t.spacing.md, color: t.color.textPrimary,
+                fontSize: 12, maxHeight: 320,
+              }}
+              value={csvText ?? ''}
+              multiline
+              editable
+              scrollEnabled
+            />
+            <Button variant="dark" fullWidth style={{ marginTop: t.spacing.md }} onPress={() => setCsvText(null)}>
+              Fermer
+            </Button>
+          </View>
+        </View>
+      </Modal>
 
       {data.count === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingTop: 60 }}>

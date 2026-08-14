@@ -8,7 +8,9 @@ export type Appointment = {
   id: string;
   ref: string;
   barber: { id: string; name: string; isPro: boolean };
-  salon: { name: string; distanceKm?: number };
+  /** `id` is the real Mongo salon `_id` from `/appointments/mine` — rebook flows need it to
+   *  resolve the tenant slug. It used to be dropped here, so those flows sent a literal 's1'. */
+  salon: { id: string; name: string; distanceKm?: number };
   services: { id: string; name: string; price: number }[];
   date: string;       // 'yyyy-MM-dd' (Africa/Tunis)
   startTime: string;  // 'HH:mm' (Africa/Tunis)
@@ -51,7 +53,7 @@ function transform(raw: RawAppointment, context: 'upcoming' | 'history'): Appoin
     id: raw.id,
     ref: raw.id.slice(-8).toUpperCase(),
     barber: { id: raw.barber.id ?? '', name: raw.barber.name, isPro: raw.barber.isPro },
-    salon: { name: raw.salonName ?? 'Salon' },
+    salon: { id: raw.salonId, name: raw.salonName ?? 'Salon' },
     services: raw.services,
     date: salonDateKey(raw.start),
     startTime: formatSalonTime(raw.start),

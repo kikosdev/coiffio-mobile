@@ -9,6 +9,7 @@ import {
 import { useMySalon } from '../../src/hooks/owner/useMySalon';
 import { useNotifications } from '../../src/hooks/useNotifications';
 import { useAuthStore } from '../../src/stores/auth';
+import { HeaderAvatarButton } from '../../src/components/owner/HeaderAvatarButton';
 import { formatMoney } from '../../src/utils/formatMoney';
 
 export default function OwnerHQ() {
@@ -37,37 +38,40 @@ export default function OwnerHQ() {
           <T variant="small" color={t.color.textSecondary}>Owner · {user?.name ?? ''}</T>
           <Wordmark tag="HQ" />
         </View>
-        <TouchableOpacity
-          style={{
-            width: 40, height: 40,
-            backgroundColor: t.color.surfaceCard,
-            borderRadius: 20,
-            alignItems: 'center', justifyContent: 'center',
-            borderWidth: 1, borderColor: t.color.borderSubtle,
-          }}
-          onPress={() => router.push('/notifications')}
-        >
-          <Bell size={19} color={t.color.textPrimary} />
-          {unreadCount > 0 && (
-            <View style={{
-              position: 'absolute', top: 7, right: 8,
-              width: 8, height: 8, borderRadius: 4,
-              backgroundColor: t.color.gold, borderWidth: 2, borderColor: t.color.surfaceCard,
-            }} />
-          )}
-        </TouchableOpacity>
+        <Row gap={10}>
+          <TouchableOpacity
+            style={{
+              width: 40, height: 40,
+              backgroundColor: t.color.surfaceCard,
+              borderRadius: 20,
+              alignItems: 'center', justifyContent: 'center',
+              borderWidth: 1, borderColor: t.color.borderSubtle,
+            }}
+            onPress={() => router.push('/notifications')}
+          >
+            <Bell size={19} color={t.color.textPrimary} />
+            {unreadCount > 0 && (
+              <View style={{
+                position: 'absolute', top: 7, right: 8,
+                width: 8, height: 8, borderRadius: 4,
+                backgroundColor: t.color.gold, borderWidth: 2, borderColor: t.color.surfaceCard,
+              }} />
+            )}
+          </TouchableOpacity>
+          <HeaderAvatarButton />
+        </Row>
       </Row>
 
       {/* ── Today hero (single-salon) ── */}
       <LinearGradient
-        colors={['#23201B', '#141210']}
+        colors={[t.color.heroGradientStart, t.color.heroGradientEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
           margin: t.spacing.xxl,
           borderRadius: t.radius.xxl,
           borderWidth: 1,
-          borderColor: '#34302A',
+          borderColor: t.color.goldBorder,
           padding: t.spacing.lg,
           overflow: 'hidden',
         }}
@@ -85,7 +89,7 @@ export default function OwnerHQ() {
             {formatMoney(salon.todayRevenue)}
           </T>
           <View style={{
-            backgroundColor: '#1F1810',
+            backgroundColor: t.color.goldSoft,
             borderRadius: t.radius.pill,
             paddingHorizontal: 8, paddingVertical: 3,
             marginBottom: 4,

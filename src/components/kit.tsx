@@ -22,9 +22,14 @@ export function Screen({ children, scroll = true, style, padBottom = true, refre
   const insets = useSafeAreaInsets();
   const bg = { backgroundColor: t.color.bgBase };
 
+  // `insets.top` was missing here — every screen using `Screen` (30 owner screens + client
+  // search + notifications.tsx) relied only on `ScreenHeader`'s fixed `paddingTop: t.spacing.lg`
+  // (16px), which sits UNDER the status bar / notch / dynamic island on any device with one.
+  // Stacking `insets.top` here with `ScreenHeader`'s own padding mirrors how the bottom already
+  // works (`insets.bottom + 24`) — safe area first, a little breathing room on top of it.
   if (!scroll) {
     return (
-      <View style={[{ flex: 1, paddingBottom: padBottom ? insets.bottom : 0 }, bg, style]}>
+      <View style={[{ flex: 1, paddingTop: insets.top, paddingBottom: padBottom ? insets.bottom : 0 }, bg, style]}>
         {children}
       </View>
     );
@@ -34,7 +39,7 @@ export function Screen({ children, scroll = true, style, padBottom = true, refre
     <ScrollView
       style={[{ flex: 1 }, bg]}
       contentContainerStyle={[
-        { paddingBottom: padBottom ? insets.bottom + 24 : 24 },
+        { paddingTop: insets.top, paddingBottom: padBottom ? insets.bottom + 24 : 24 },
         style as ViewStyle,
       ]}
       showsVerticalScrollIndicator={false}
@@ -159,7 +164,7 @@ export function Button({ children, onPress, variant = 'gold', size = 'md', style
     outline: 'transparent',
     ghost:   'transparent',
     dark:    t.color.surfaceElevated,
-    white:   '#FFFFFF',
+    white:   t.color.white,
   };
 
   const borderMap: Record<ButtonVariant, string> = {
@@ -372,13 +377,16 @@ interface ProfileScreenProps {
   initials: string;
   subtitle: string;
   children?: React.ReactNode;
+  /** Forwarded to `ScreenHeader`'s `right` slot — e.g. a hamburger button. Optional and
+   *  additive: `settings.tsx` doesn't pass it and renders exactly as before. */
+  headerRight?: React.ReactNode;
 }
 
-export function ProfileScreen({ name, initials, subtitle, children }: ProfileScreenProps) {
+export function ProfileScreen({ name, initials, subtitle, children, headerRight }: ProfileScreenProps) {
   const t = useTheme();
   return (
     <Screen>
-      <ScreenHeader title="Profile" />
+      <ScreenHeader title="Profile" right={headerRight} />
       <View style={{ alignItems: 'center', paddingVertical: 24 }}>
         <Avatar initials={initials} size={80} />
         <T variant="subtitle" style={{ marginTop: 12 }}>{name}</T>
@@ -459,7 +467,7 @@ export function GoldHeroCard({ label, amount, change, stats, style }: GoldHeroCa
       borderRadius: t.radius.xxl,
       backgroundColor: t.color.goldSoft,
       borderWidth: 1,
-      borderColor: '#34302A',
+      borderColor: t.color.goldBorder,
       padding: t.spacing.lg,
       overflow: 'hidden',
     }, style]}>
@@ -467,7 +475,7 @@ export function GoldHeroCard({ label, amount, change, stats, style }: GoldHeroCa
       <Row gap={10} style={{ marginTop: 6 }}>
         <T variant="hero">{amount}</T>
         {change && (
-          <View style={{ backgroundColor: '#1F1810', borderRadius: t.radius.pill, paddingHorizontal: 8, paddingVertical: 3 }}>
+          <View style={{ backgroundColor: t.color.goldSoft, borderRadius: t.radius.pill, paddingHorizontal: 8, paddingVertical: 3 }}>
             <T variant="small" color={t.color.gold}>▲ {change}</T>
           </View>
         )}
@@ -500,13 +508,13 @@ export function StatusDot({ status }: { status: StatusType }) {
     break:       t.color.pending,
     closing:     t.color.pending,
     in_progress: t.color.gold,
-    upcoming:    '#444444',
-    off:         '#444444',
+    upcoming:    t.color.statusMuted,
+    off:         t.color.statusMuted,
   };
   return (
     <View style={{
       width: 8, height: 8, borderRadius: 4,
-      backgroundColor: colorMap[status] ?? '#444444',
+      backgroundColor: colorMap[status] ?? t.color.statusMuted,
     }} />
   );
 }

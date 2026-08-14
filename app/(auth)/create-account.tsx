@@ -9,7 +9,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useRoleStore } from '../../src/state/role';
 import { useAuthStore } from '../../src/stores/auth';
+import { ApiError } from '../../src/api/client';
 import { DEFAULT_PHONE_PREFIX, joinPhoneNumber, normalizePhonePrefix } from '../../src/utils/phone';
+
+/**
+ * Le `catch` précédent écrasait TOUTE erreur par "The identifier may already be in use." —
+ * y compris un 404 et un 400 de validation. Le vrai échec observé était un
+ * `404 {"message":"Salon not specified."}` (register exige un `salonSlug`), et ce message
+ * inventé a fait chercher un doublon d'identifiant inexistant pendant tout un audit.
+ * Ne jamais deviner la cause : n'annoncer "déjà utilisé" que sur un vrai 409.
+ */
+function registerErrorMessage(err: unknown): string {
+  if (!(err instanceof ApiError)) {
+    return 'Connexion impossible. Vérifiez votre réseau et réessayez.';
+  }
+  if (err.status === 409) return 'Cet identifiant est déjà utilisé.';
+  // 400 = validation : le backend nomme précisément le champ fautif, plus utile qu'un texte figé.
+  if (err.status === 400) return err.message;
+  if (err.status === 404 || err.status >= 500) return 'Erreur serveur, réessayez.';
+  return err.message;
+}
 
 // ── SVG icons ─────────────────────────────────────────────────────────────────
 
@@ -138,8 +157,8 @@ export default function CreateAccountScreen() {
       });
       setRole('client');
       router.replace('/(client)/home' as never);
-    } catch {
-      setFormError('Could not create account. The identifier may already be in use.');
+    } catch (err) {
+      setFormError(registerErrorMessage(err));
     } finally {
       setSubmitting(false);
     }

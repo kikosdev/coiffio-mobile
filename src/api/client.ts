@@ -16,35 +16,59 @@ if (!process.env.EXPO_PUBLIC_API_URL) {
 const REQUEST_TIMEOUT_MS = 60_000;
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  /**
+   * The full parsed error body, when the backend sent one beyond `{ message }` — e.g. leave-
+   * request approval's 409 `{ message, conflicts }`. `unknown` because its shape is endpoint-
+   * specific; callers that need a field off it should narrow with a type guard.
+   */
+  constructor(message: string, public status: number, public details?: unknown) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
 let authToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+// Guards concurrent 401s (e.g. three in-flight requests all rejected together) down to a
+// single purge/redirect. Reset whenever a real token is set — i.e. a new session starts, so a
+// later 401 in *that* session can trigger the callback again.
+let unauthorizedHandled = false;
 
 export function setAuthToken(token: string | null): void {
   authToken = token;
+  if (token) unauthorizedHandled = false;
 }
 
-async function request<T>(
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
-  path: string,
-  body?: unknown,
-): Promise<T> {
+/**
+ * Registered by stores/auth.ts at module load (never imported the other way — client.ts must
+ * stay decoupled from auth.ts to avoid a circular import). Fires on a 401 received mid-session;
+ * a 401 during authStore.hydrate()'s own startup token check is intentionally left to
+ * hydrate()'s existing catch block — the registered callback self-guards against that case by
+ * checking session state before acting, not this module.
+ */
+export function setUnauthorizedCallback(fn: () => void): void {
+  onUnauthorized = fn;
+}
+
+function handleUnauthorized(): void {
+  if (unauthorizedHandled) return;
+  unauthorizedHandled = true;
+  onUnauthorized?.();
+}
+
+type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+
+async function fetchWithTimeout(method: HttpMethod, url: string, body?: unknown): Promise<Response> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  const url = `${API_BASE_URL}${path}`;
   if (__DEV__) console.log(`[api] → ${method} ${url}`);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  let res: Response;
   try {
-    res = await fetch(url, {
+    return await fetch(url, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -59,6 +83,11 @@ async function request<T>(
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
+  const url = `${API_BASE_URL}${path}`;
+  const res = await fetchWithTimeout(method, url, body);
 
   const text = await res.text();
   const json = text ? JSON.parse(text) : null;
@@ -66,12 +95,40 @@ async function request<T>(
   if (__DEV__) console.log(`[api] ← ${res.status} ${method} ${url}`, json);
 
   if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
     const message = json?.message ?? `Request failed (${res.status})`;
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res.status, json);
   }
 
   // Backend envelope: { data, message }
   return (json?.data ?? null) as T;
+}
+
+/**
+ * For endpoints that respond with a raw body instead of the `{ data, message }` envelope
+ * (e.g. `GET /reports/export.csv`, `Content-Type: text/csv`) — `request()` always runs the
+ * body through `JSON.parse`, which throws on non-JSON payloads.
+ */
+async function requestText(method: HttpMethod, path: string, body?: unknown): Promise<string> {
+  const url = `${API_BASE_URL}${path}`;
+  const res = await fetchWithTimeout(method, url, body);
+  const text = await res.text();
+
+  if (__DEV__) console.log(`[api] ← ${res.status} ${method} ${url} (text, ${text.length}b)`);
+
+  if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
+    let message = `Request failed (${res.status})`;
+    try {
+      const json = JSON.parse(text);
+      message = json?.message ?? message;
+    } catch {
+      // body wasn't JSON either — keep the generic message
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  return text;
 }
 
 type QueryValue = string | number | string[] | undefined;
@@ -97,5 +154,10 @@ export const api = {
     request<T>('GET', withQuery(path, params)),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
-  del: <T>(path: string) => request<T>('DELETE', path),
+  put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
+  del: <T>(path: string, params?: Record<string, QueryValue>) =>
+    request<T>('DELETE', withQuery(path, params)),
+  /** Same auth/timeout handling as `get`, but returns the raw response body — for non-JSON responses. */
+  getText: (path: string, params?: Record<string, QueryValue>) =>
+    requestText('GET', withQuery(path, params)),
 };

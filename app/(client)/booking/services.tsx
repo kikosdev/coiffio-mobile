@@ -62,13 +62,27 @@ export default function ServicesScreen() {
   const draft = useBookingDraft();
   const [catalog, setCatalog] = useState<BookService[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState(false);
+
+  const salonSlug = draft.salonSlug;
 
   useEffect(() => {
-    fetchCatalog()
+    if (!salonSlug) {
+      // A missing slug is a broken navigation, not an empty catalog — surface it as an error.
+      setCatalogError(true);
+      setCatalogLoading(false);
+      return;
+    }
+    setCatalogLoading(true);
+    setCatalogError(false);
+    fetchCatalog(salonSlug)
       .then(setCatalog)
-      .catch(() => setCatalog([]))
+      .catch(() => {
+        setCatalog([]);
+        setCatalogError(true);
+      })
       .finally(() => setCatalogLoading(false));
-  }, []);
+  }, [salonSlug]);
 
   const canContinue = draft.services.length > 0;
 
@@ -96,6 +110,14 @@ export default function ServicesScreen() {
 
         {catalogLoading ? (
           <Text style={[styles.catalogueMeta, { color: t.color.textMuted, paddingVertical: 20 }]}>Loading services…</Text>
+        ) : catalogError ? (
+          <Text style={[styles.catalogueMeta, { color: t.color.textSecondary, paddingVertical: 20 }]}>
+            Couldn't load this salon's services. Go back and reopen the salon.
+          </Text>
+        ) : catalog.length === 0 ? (
+          <Text style={[styles.catalogueMeta, { color: t.color.textSecondary, paddingVertical: 20 }]}>
+            Ce salon n'a pas encore de services.
+          </Text>
         ) : (
           catalog.map((s) => {
             const selected = draft.services.some((ds) => ds.id === s._id);

@@ -16,7 +16,19 @@ export const base = {
     goldDeep: '#C07318',
     goldSoft: '#1F1810',
     goldWarm: '#CDB892',
+    // Warm border used on gold-tinted accent cards (HQ hero, GoldHeroCard, "assigned salon"
+    // panels) — not role-varying like gold/goldSoft/goldWarm above, so it isn't in `overlays`.
+    goldBorder: '#34302A',
     onGold: '#0E0E0E',
+
+    // Gradient stops for the HQ "Today" hero card. Same non-role-varying reasoning as goldBorder.
+    heroGradientStart: '#23201B',
+    heroGradientEnd: '#141210',
+
+    // Fixed pure-white background for Button's "white" variant — intentionally not
+    // theme-derived (unlike textPrimary, which happens to share this value today but exists
+    // for a different purpose and could diverge from it).
+    white: '#FFFFFF',
 
     textPrimary: '#FFFFFF',
     textSecondary: '#8A8A8A',
@@ -33,6 +45,9 @@ export const base = {
 
     proTag: '#F4A62A',
     proTagText: '#0E0E0E',
+
+    // Default/inactive status-dot color (StatusDot's 'upcoming'/'off' states + its fallback).
+    statusMuted: '#444444',
   },
   spacing: {
     xs: 4,

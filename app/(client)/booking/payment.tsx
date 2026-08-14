@@ -81,16 +81,17 @@ export default function PaymentScreen() {
   const contactValid =
     contact.firstName.trim() !== '' &&
     phoneLocal.trim() !== '';
-  const canSubmit = contactValid && !!draft.barberId && !!draft.slotStartISO && draft.services.length > 0;
+  const canSubmit =
+    contactValid && !!draft.salonSlug && !!draft.barberId && !!draft.slotStartISO && draft.services.length > 0;
 
   const handleConfirmBooking = async () => {
-    if (!canSubmit || !draft.barberId || !draft.slotStartISO) return;
+    if (!canSubmit || !draft.salonSlug || !draft.barberId || !draft.slotStartISO) return;
     setSubmitting(true);
     setBookingError('');
     try {
-      // Same POST /appointments the web storefront uses for both guest and signed-in
+      // Same POST /:salonSlug/appointments the web storefront uses for both guest and signed-in
       // bookings — the backend resolves/creates the Client by phone (merge-on-phone).
-      const appt = await createAppointment({
+      const appt = await createAppointment(draft.salonSlug, {
         serviceIds: draft.services.map((s) => s.id),
         stylistId: draft.barberId,
         start: draft.slotStartISO,

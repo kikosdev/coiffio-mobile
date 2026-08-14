@@ -1,15 +1,16 @@
 import { useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, FlatList, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuthStore } from '../../src/stores/auth';
 import { useUserLocation } from '../../src/hooks/useUserLocation';
 import { useSettingsStore, RADIUS_OPTIONS_KM } from '../../src/stores/settings';
 import { useHomeStore } from '../../src/stores/home';
 import { NEARBY_THRESHOLD } from '../../src/config';
+import { SalonCard, SalonCardSkeleton } from '../../src/components/SalonCard';
 
 // ── Icon helpers ─────────────────────────────────────────────────────────────
 
@@ -65,6 +66,25 @@ function MapIcon({ color }: { color: string }) {
   );
 }
 
+// ── Salon rail helpers ───────────────────────────────────────────────────────
+
+/** Two fixed-width placeholders clipped by the screen edge — reads as a scrollable rail. */
+function SkeletonRail() {
+  return (
+    <View style={styles.skeletonRail}>
+      <SalonCardSkeleton />
+      <SalonCardSkeleton />
+    </View>
+  );
+}
+
+/** Shared FlatList config for both salon rails — one horizontal line, never wrapped. */
+const RAIL_PROPS = {
+  horizontal: true as const,
+  showsHorizontalScrollIndicator: false,
+  contentContainerStyle: { paddingHorizontal: 22, gap: 12 },
+};
+
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ClientHome() {
@@ -80,7 +100,7 @@ export default function ClientHome() {
   const setSearchRadiusKm = useSettingsStore((s) => s.setSearchRadiusKm);
 
   const {
-    latestVisit, loadingLatest, nearby, loadingNearby,
+    latestVisit, loadingLatest, nearby, loadingNearby, nearbyError,
     salons, loadingSalons, salonsError, fetchLatestVisit, fetchNearby, fetchSalons,
   } = useHomeStore();
 
@@ -107,9 +127,20 @@ export default function ClientHome() {
     ? latestVisit.barber.name.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase()
     : '';
 
+  // Carries the salon context the barber screen needs — same param contract as salon/[id]'s
+  // goToBarber. Without `salonSlug` the booking draft started empty and every `:salonSlug`
+  // route 404'd; the slug now comes straight from the latest-visit payload, so this path costs
+  // no extra round trip (unlike the rebook flow, which resolves it from the salon id).
   function handleBookBarber() {
-    if (!latestVisit?.barber.id) return;
-    router.push({ pathname: '/(client)/barber/[id]', params: { id: latestVisit.barber.id } });
+    if (!latestVisit?.barber.id || !latestVisit.salonSlug) return;
+    router.push({
+      pathname: '/(client)/barber/[id]',
+      params: {
+        id: latestVisit.barber.id,
+        salonId: latestVisit.salonId,
+        salonSlug: latestVisit.salonSlug,
+      },
+    });
   }
 
   function handleOpenSalon(salonId: string) {
@@ -258,12 +289,7 @@ export default function ClientHome() {
         </Pressable>
       )}
 
-      {locStatus === 'requesting' && (
-        <View style={styles.nearbyRow}>
-          <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
-          <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
-        </View>
-      )}
+      {locStatus === 'requesting' && <SkeletonRail />}
 
       {(locStatus === 'denied' || locStatus === 'error') && (
         <View style={[styles.locationPrompt, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}>
@@ -276,10 +302,16 @@ export default function ClientHome() {
 
       {locStatus === 'granted' && (
         loadingNearby ? (
-          <View style={styles.nearbyRow}>
-            <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
-            <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
-          </View>
+          <SkeletonRail />
+        ) : nearbyError ? (
+          <Pressable
+            onPress={() => coords && fetchNearby(coords.lat, coords.lng, searchRadiusKm)}
+            style={[styles.locationPrompt, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}
+          >
+            <Text style={[styles.locationPromptText, { color: t.color.textSecondary }]}>
+              Couldn't load nearby salons — tap to retry.
+            </Text>
+          </Pressable>
         ) : nearby.length === 0 ? (
           <View style={[styles.locationPrompt, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}>
             <Text style={[styles.locationPromptText, { color: t.color.textSecondary }]}>
@@ -287,41 +319,18 @@ export default function ClientHome() {
             </Text>
           </View>
         ) : (
-          <View style={styles.nearbyRow}>
-            {nearby.map((salon) => (
-              <View key={salon.id} style={[styles.nearbyCard, { backgroundColor: t.color.surfaceCard }]}>
-                <View style={styles.nearbyImgWrap}>
-                  <View style={[styles.nearbyImg, { backgroundColor: t.color.borderSubtle }]} />
-                  {salon.rating != null && (
-                    <View style={styles.ratingBadge}>
-                      <StarIcon size={11} color={t.color.gold} />
-                      <Text style={[styles.ratingBadgeText, { color: t.color.textPrimary }]}>
-                        {salon.rating.toFixed(1)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.nearbyContent}>
-                  {salon.isOpen === true && (
-                    <Text style={[styles.openNow, { color: t.color.gold }]}>OPEN NOW</Text>
-                  )}
-                  <Text style={[styles.nearbyName, { color: t.color.textPrimary }]}>{salon.name}</Text>
-                  <View style={styles.distanceRow}>
-                    <MapPinIcon color={t.color.textSecondary} />
-                    <Text style={[styles.distanceText, { color: t.color.textSecondary }]}>
-                      {salon.distanceKm != null ? `${salon.distanceKm} km` : 'Distance unavailable'}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => handleOpenSalon(salon.id)}
-                    style={[styles.bookNowBtn, { backgroundColor: t.color.textPrimary }]}
-                  >
-                    <Text style={[styles.bookNowText, { color: t.color.bgBase }]}>View</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ))}
-          </View>
+          <FlatList
+            {...RAIL_PROPS}
+            data={nearby}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <SalonCard
+                item={item}
+                subtitle={item.distanceKm != null ? `${item.distanceKm} km` : null}
+                onPress={() => handleOpenSalon(item.id)}
+              />
+            )}
+          />
         )
       )}
       </>
@@ -329,10 +338,7 @@ export default function ClientHome() {
 
       {!useNearbyMode && (
         loadingSalons ? (
-          <View style={styles.nearbyRow}>
-            <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
-            <View style={[styles.nearbyCard, styles.nearbySkeleton, { backgroundColor: t.color.surfaceCard }]} />
-          </View>
+          <SkeletonRail />
         ) : salonsError ? (
           <Pressable
             onPress={fetchSalons}
@@ -345,45 +351,24 @@ export default function ClientHome() {
         ) : salons.length === 0 ? (
           <View style={[styles.locationPrompt, { backgroundColor: t.color.surfaceCard, borderColor: t.color.borderSubtle }]}>
             <Text style={[styles.locationPromptText, { color: t.color.textSecondary }]}>
-              No salons available yet.
+              No salons available.
             </Text>
           </View>
         ) : (
-          <View style={styles.nearbyRow}>
-            {salons.map((salon) => (
-              <View key={salon.id} style={[styles.nearbyCard, { backgroundColor: t.color.surfaceCard }]}>
-                <View style={styles.nearbyImgWrap}>
-                  <View style={[styles.nearbyImg, { backgroundColor: t.color.borderSubtle }]} />
-                  {salon.rating != null && (
-                    <View style={styles.ratingBadge}>
-                      <StarIcon size={11} color={t.color.gold} />
-                      <Text style={[styles.ratingBadgeText, { color: t.color.textPrimary }]}>
-                        {salon.rating.toFixed(1)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.nearbyContent}>
-                  {salon.isOpen === true && (
-                    <Text style={[styles.openNow, { color: t.color.gold }]}>OPEN NOW</Text>
-                  )}
-                  <Text style={[styles.nearbyName, { color: t.color.textPrimary }]}>{salon.name}</Text>
-                  <View style={styles.distanceRow}>
-                    <MapPinIcon color={t.color.textSecondary} />
-                    <Text style={[styles.distanceText, { color: t.color.textSecondary }]} numberOfLines={1}>
-                      {salon.address || 'Address unavailable'}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => handleOpenSalon(salon.id)}
-                    style={[styles.bookNowBtn, { backgroundColor: t.color.textPrimary }]}
-                  >
-                    <Text style={[styles.bookNowText, { color: t.color.bgBase }]}>View</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ))}
-          </View>
+          <FlatList
+            {...RAIL_PROPS}
+            data={salons}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              // `address` is `''` for every salon in the directory today — pass null so the
+              // row is dropped rather than printing an "Address unavailable" placeholder.
+              <SalonCard
+                item={item}
+                subtitle={item.address || null}
+                onPress={() => handleOpenSalon(item.id)}
+              />
+            )}
+          />
         )
       )}
     </ScrollView>
@@ -433,21 +418,8 @@ const styles = StyleSheet.create({
   radiusPill:      { borderWidth: 1, borderRadius: 100, paddingHorizontal: 12, paddingVertical: 6 },
   radiusPillText:  { fontSize: 12, fontWeight: '700' },
 
-  // Nearby
-  nearbyRow:       { flexDirection: 'row', gap: 12, paddingHorizontal: 22 },
-  nearbyCard:      { flex: 1, borderRadius: 20, overflow: 'hidden' },
-  nearbySkeleton:  { height: 190, opacity: 0.5 },
-  nearbyImgWrap:   { padding: 8, paddingBottom: 0 },
-  nearbyImg:       { width: '100%', height: 98, borderRadius: 14 },
-  ratingBadge:     { position: 'absolute', top: 14, left: 14, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 100, paddingHorizontal: 8, paddingVertical: 3, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingBadgeText: { fontSize: 11, fontWeight: '700' },
-  nearbyContent:   { padding: 10, paddingHorizontal: 12, paddingBottom: 12 },
-  openNow:         { fontSize: 9, fontWeight: '800', letterSpacing: 0.36 },
-  nearbyName:      { fontSize: 14, fontWeight: '700', marginTop: 3 },
-  distanceRow:     { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  distanceText:    { fontSize: 11, fontWeight: '600' },
-  bookNowBtn:      { borderRadius: 100, alignItems: 'center', paddingVertical: 9, marginTop: 10 },
-  bookNowText:     { fontSize: 12, fontWeight: '700' },
+  // Salon rails — the cards themselves live in src/components/SalonCard.tsx
+  skeletonRail:    { flexDirection: 'row', gap: 12, paddingHorizontal: 22 },
 
   // Nearby header row
   nearbyHeader:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingTop: 18, paddingBottom: 6 },

@@ -5,6 +5,11 @@ import { listSalons, type PublicSalon } from '../api/salons';
 
 export interface LatestVisit {
   appointmentId: string;
+  /** Mirrors the backend's LatestVisit — `salonSlug` is what the `:salonSlug`-prefixed booking
+   *  routes need, so the "Book" tap on this card carries a real salon context. Nullable: the
+   *  backend returns null rather than inventing a slug for a salon that has none. */
+  salonId: string;
+  salonSlug: string | null;
   barber: {
     id: string | null;
     name: string;
@@ -33,6 +38,7 @@ interface HomeState {
   loadingLatest: boolean;
   nearby: NearbySalon[];
   loadingNearby: boolean;
+  nearbyError: boolean;
   salons: PublicSalon[];
   loadingSalons: boolean;
   salonsError: boolean;
@@ -46,6 +52,7 @@ export const useHomeStore = create<HomeState>((set) => ({
   loadingLatest: false,
   nearby: [],
   loadingNearby: false,
+  nearbyError: false,
   salons: [],
   loadingSalons: true,
   salonsError: false,
@@ -61,13 +68,16 @@ export const useHomeStore = create<HomeState>((set) => ({
     }
   },
 
+  // `nearbyError` exists so a failed request stays distinguishable from a genuine
+  // "no salon within X km" — collapsing both into `nearby: []` told the user the area was
+  // empty when the network was actually down.
   fetchNearby: async (lat, lng, radiusKm) => {
-    set({ loadingNearby: true });
+    set({ loadingNearby: true, nearbyError: false });
     try {
       const data = await api.get<NearbySalon[]>('/salons/nearby', { lat, lng, radiusKm });
       set({ nearby: data, loadingNearby: false });
     } catch {
-      set({ nearby: [], loadingNearby: false });
+      set({ nearby: [], loadingNearby: false, nearbyError: true });
     }
   },
 

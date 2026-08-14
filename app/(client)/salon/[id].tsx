@@ -78,13 +78,21 @@ export default function SalonProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  // The booking routes are keyed by slug, but this screen is navigated to by Mongo `_id` — so
+  // the salon has to be resolved first and its `slug` used for the two follow-up calls. They
+  // used to run in parallel against a hardcoded `'salon-haire'`, which meant this screen showed
+  // another salon's team/catalog (or 404'd, since that slug doesn't exist).
   const load = () => {
     if (!id) return;
     setLoading(true);
     setError(false);
-    Promise.all([getSalon(id), fetchBookableStylists(), fetchCatalog()])
-      .then(([s, team, catalog]) => {
+    getSalon(id)
+      .then(async (s) => {
         setSalon(s);
+        const [team, catalog] = await Promise.all([
+          fetchBookableStylists(s.slug),
+          fetchCatalog(s.slug),
+        ]);
         setStaff(team);
         setFromPrice(catalog.length ? Math.min(...catalog.map((c) => c.price)) : null);
       })
@@ -100,7 +108,12 @@ export default function SalonProfile() {
   const goToBarber = (barberId: string) => {
     router.push({
       pathname: '/(client)/barber/[id]',
-      params: { id: barberId, salonId: id ?? '', salonName: salon?.name ?? '' },
+      params: {
+        id: barberId,
+        salonId: id ?? '',
+        salonSlug: salon?.slug ?? '',
+        salonName: salon?.name ?? '',
+      },
     });
   };
 

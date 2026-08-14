@@ -42,7 +42,9 @@ type Tab = 'portfolio' | 'reviews';
 export default function BarberProfile() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { id, salonId, salonName } = useLocalSearchParams<{ id: string; salonId: string; salonName: string }>();
+  const { id, salonId, salonSlug, salonName } = useLocalSearchParams<{
+    id: string; salonId: string; salonSlug: string; salonName: string;
+  }>();
   const draft = useBookingDraft();
 
   const [barber, setBarber] = useState<PublicStylist | null>(null);
@@ -51,19 +53,26 @@ export default function BarberProfile() {
   const [isFav, setIsFav] = useState(false);
 
   useEffect(() => {
-    fetchBookableStylists()
+    if (!salonSlug) {
+      // No slug means the caller lost the salon context; the team call would 404 anyway.
+      setBarber(null);
+      setLoading(false);
+      return;
+    }
+    fetchBookableStylists(salonSlug)
       .then((team) => setBarber(team.find((s) => s.id === id) ?? null))
       .catch(() => setBarber(null))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, salonSlug]);
 
   const handleBook = () => {
     // Barber-first path (SKILL_fix_mobile_booking_barber_availability): preselecting the real
     // staff id here is what lets services.tsx skip the redundant "Choose your stylist" step.
-    draft.init(salonId ?? '', barber?.id ?? '', {
-      barberName: barber?.name ?? '',
-      salonName: salonName ?? '',
-    });
+    draft.init(
+      { id: salonId ?? '', slug: salonSlug ?? '' },
+      barber?.id ?? '',
+      { barberName: barber?.name ?? '', salonName: salonName ?? '' },
+    );
     router.push('/(client)/booking/services');
   };
 

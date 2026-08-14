@@ -1,54 +1,29 @@
-import { useCallback, useEffect, useState } from 'react';
-import { api } from '../../api/client';
-import { salonDateKey, nowAsSalonTime } from '../../utils/salonTime';
+import { useEffect } from 'react';
+import { useOwnerSalonStore } from '../../stores/ownerSalon';
+import { MySalon, OwnerTeamMember } from '../../types/owner';
 
-export type TeamStatus = 'active' | 'off';
+export type { MySalon, OwnerTeamMember };
 
-export interface OwnerTeamMember {
-  id: string;
-  name: string;
-  initials: string;
-  isPro: boolean;
-  status: TeamStatus;
-  todayCount: number;
-}
-
-export interface MySalon {
-  id: string;
-  name: string;
-  address: string;
-  hoursToday: string | null; // null = closed today
-  isOpen: boolean;
-  todayRevenue: number;
-  revenueChangePct: number;
-  bookingCount: number;
-  barbersOn: number;
-  barbersTotal: number;
-  occupancyPct: number;
-  team: OwnerTeamMember[];
-}
-
+/**
+ * Reads the shared ownerSalon store (src/stores/ownerSalon.ts) instead of fetching GET
+ * /owner/hq itself — hq.tsx, salons.tsx, salon/[id].tsx and team.tsx all call this hook, and
+ * previously each one triggered its own request. The store dedupes across all of them.
+ */
 export function useMySalon() {
-  const [salon, setSalon] = useState<MySalon | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const today = salonDateKey(nowAsSalonTime());
-      setSalon(await api.get<MySalon>('/owner/hq', { date: today }));
-    } catch {
-      setError('Could not load salon data.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const salon = useOwnerSalonStore((s) => s.salon);
+  const status = useOwnerSalonStore((s) => s.status);
+  const error = useOwnerSalonStore((s) => s.error);
+  const fetchHQ = useOwnerSalonStore((s) => s.fetchHQ);
+  const refresh = useOwnerSalonStore((s) => s.refresh);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    fetchHQ();
+  }, [fetchHQ]);
 
-  return { data: salon, isLoading, error, refresh };
+  return {
+    data: salon,
+    isLoading: status === 'idle' || status === 'loading',
+    error: status === 'error' ? (error ?? 'Could not load salon data.') : null,
+    refresh,
+  };
 }

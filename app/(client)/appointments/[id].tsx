@@ -7,6 +7,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useAppointments, type AppointmentStatus } from '../../../src/stores/appointments';
 import { useBookingDraft } from '../../../src/stores/bookingDraft';
+import { resolveSalonSlug } from '../../../src/api/salons';
 import { formatMoney } from '../../../src/utils/formatMoney';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -89,8 +90,13 @@ export default function AppointmentDetailScreen() {
     Alert.alert('Share', `Booking ${appt.ref} — ${format(dateObj, 'EEE MMM d')} at ${appt.startTime}`);
   };
 
-  const handleReschedule = () => {
-    draft.init('s1', appt.barber.id, {
+  const handleReschedule = async () => {
+    const slug = await resolveSalonSlug(appt.salon.id);
+    if (!slug) {
+      Alert.alert('Could not start booking', 'This salon is unavailable right now.');
+      return;
+    }
+    draft.init({ id: appt.salon.id, slug }, appt.barber.id, {
       barberName: appt.barber.name,
       salonName: appt.salon.name,
     });

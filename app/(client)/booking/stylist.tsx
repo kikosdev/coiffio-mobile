@@ -58,15 +58,16 @@ export default function StylistScreen() {
 
   useEffect(() => {
     if (serviceIds.length === 0) return;
+    if (!draft.salonSlug) { setTeam([]); setLoadError(true); setLoading(false); return; }
     setLoading(true);
     setLoadError(false);
-    fetchBookableStylists()
+    fetchBookableStylists(draft.salonSlug)
       .then(setTeam)
       // A failed request is NOT the same state as "no stylists eligible" — conflating them
       // hides real outages behind a dead-end empty list.
       .catch(() => { setTeam([]); setLoadError(true); })
       .finally(() => setLoading(false));
-  }, [serviceIds.join(','), retryTick]);
+  }, [draft.salonSlug, serviceIds.join(','), retryTick]);
 
   const canContinue = !!selectedId;
 

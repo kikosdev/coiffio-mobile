@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "BLACK BOX",
-    "slug": "salon-mobile",
+    "name": "black-box",
+    "slug": "black-box",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -48,9 +48,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "304cc1f5-24e8-4499-a693-adfcd9bca90d"
+        "projectId": "ad0c402b-f6c8-4e18-8264-5c488f54f138"
       }
     },
-    "owner": "skandera"
+    "owner": "snakedev"
   }
 }
