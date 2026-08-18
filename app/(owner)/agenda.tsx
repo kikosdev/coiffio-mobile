@@ -68,7 +68,8 @@ export default function OwnerAgenda(): React.JSX.Element {
   const [date, setDate] = React.useState<Date>(() => (dateParam ? parseLocalDateKey(dateParam) : todayAsLocalDate()));
   const [stylistId, setStylistId] = React.useState<string | null>(null);
 
-  const team = useOwnerSalonStore((s) => s.salon?.team ?? []);
+  const salon = useOwnerSalonStore((s) => s.salon);
+  const team = salon?.team ?? [];
   const dateKey = localDateKey(date);
 
   const resource = useResource(

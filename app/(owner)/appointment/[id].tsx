@@ -29,7 +29,8 @@ export default function AppointmentDetail(): React.JSX.Element {
   const appointmentId = id ?? '';
   const [cancelling, setCancelling] = useState(false);
 
-  const team = useOwnerSalonStore((s) => s.salon?.team ?? []);
+  const salon = useOwnerSalonStore((s) => s.salon);
+  const team = salon?.team ?? [];
   const catalog = useResource(() => servicesApi.list(), []);
 
   // Client lookup happens exactly once, here — the list screen uses a placeholder instead to

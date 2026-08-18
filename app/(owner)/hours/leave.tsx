@@ -107,7 +107,8 @@ function LeaveRow({
 
 function CreateLeaveForm({ onCreated }: { onCreated: () => Promise<void> }): React.JSX.Element {
   const t = useTheme();
-  const team = useOwnerSalonStore((s) => s.salon?.team ?? []);
+  const salon = useOwnerSalonStore((s) => s.salon);
+  const team = salon?.team ?? [];
 
   const [stylistId, setStylistId] = useState<string | null>(team[0]?.id ?? null);
   const [type, setType] = useState<LeaveType>('leave');
@@ -248,7 +249,8 @@ function CreateLeaveForm({ onCreated }: { onCreated: () => Promise<void> }): Rea
 
 export default function OwnerLeave(): React.JSX.Element {
   const t = useTheme();
-  const team = useOwnerSalonStore((s) => s.salon?.team ?? []);
+  const salon = useOwnerSalonStore((s) => s.salon);
+  const team = salon?.team ?? [];
   const resource = useResource(() => scheduleApi.listLeave(), []);
 
   function staffName(id: string): string {

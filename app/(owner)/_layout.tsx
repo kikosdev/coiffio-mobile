@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { LayoutGrid, CalendarDays, Users, Banknote, Briefcase } from 'lucide-react-native';
 import { useRoleGuard } from '../../src/hooks/useRoleGuard';
 import { useNotificationsRealtime } from '../../src/hooks/useNotificationsRealtime';
+import { useOwnerSalonStore } from '../../src/stores/ownerSalon';
 
 export default function OwnerLayout() {
   const t = useTheme();
@@ -11,6 +13,16 @@ export default function OwnerLayout() {
   // qu'un écran owner est affiché. Le badge de `hq` et la liste de notifications lisent le même
   // store, donc tous deux se mettent à jour à réception (voir useNotificationsRealtime).
   useNotificationsRealtime();
+  // Guarantees s.salon gets populated no matter which owner screen mounts first (deep-link,
+  // cold reload) — previously only useMySalon() callers (hq, team, salons, salon/[id])
+  // triggered this fetch, so any screen reading s.salon directly (agenda, appointment
+  // detail, hours/leave) saw it stuck at null until one of those happened to run first.
+  // fetchHQ() no-ops once a fetch is in flight or has already succeeded (src/stores/
+  // ownerSalon.ts), so calling it here is safe alongside each screen's own fetchHQ() call.
+  const fetchHQ = useOwnerSalonStore((s) => s.fetchHQ);
+  useEffect(() => {
+    fetchHQ();
+  }, [fetchHQ]);
 
   return (
     <Tabs
